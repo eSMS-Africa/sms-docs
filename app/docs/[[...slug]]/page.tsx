@@ -12,8 +12,7 @@ import { getMDXComponents } from '@/components/mdx';
 import type { Metadata } from 'next';
 import { createRelativeLink } from 'fumadocs-ui/mdx';
 
-const GITHUB_CONTENT = 'https://github.com/eSMS-Africa/sms-docs/blob/main/content/docs';
-const RAW_CONTENT    = 'https://raw.githubusercontent.com/eSMS-Africa/sms-docs/main/content/docs';
+const RAW_CONTENT = 'https://raw.githubusercontent.com/eSMS-Africa/sms-docs/main/content/docs';
 
 export default async function Page(props: { params: Promise<{ slug?: string[] }> }) {
   const params = await props.params;
@@ -31,10 +30,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
       {/* Action buttons — top of content, before body */}
       <div className="flex flex-row gap-2 items-center border-b pt-2 pb-6">
         <MarkdownCopyButton markdownUrl={`${RAW_CONTENT}/${filePath}`} />
-        <ViewOptionsPopover
-          markdownUrl={`${RAW_CONTENT}/${filePath}`}
-          githubUrl={`${GITHUB_CONTENT}/${filePath}`}
-        />
+        <ViewOptionsPopover />
       </div>
 
       <DocsBody>
