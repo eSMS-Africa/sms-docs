@@ -30,7 +30,7 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
       {/* Action buttons — top of content, before body */}
       <div className="flex flex-row gap-2 items-center border-b pt-2 pb-6">
         <MarkdownCopyButton markdownUrl={`${RAW_CONTENT}/${filePath}`} />
-        <ViewOptionsPopover />
+        <ViewOptionsPopover markdownUrl={`${RAW_CONTENT}/${filePath}`} />
       </div>
 
       <DocsBody>
