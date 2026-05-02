@@ -20,7 +20,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
         />
       </head>
       <body className="flex flex-col min-h-screen">
-        <RootProvider theme={{ defaultTheme: 'light', enableSystem: true }}>
+        <RootProvider
+          theme={{ defaultTheme: 'light', enableSystem: true }}
+          search={{ options: { type: 'static' } }}
+        >
           {children}
         </RootProvider>
       </body>
