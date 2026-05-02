@@ -9,16 +9,37 @@ eSMS Africa currently supports delivery to the following countries. Pricing is p
 
 | Country | Route code | Currency | Price/segment | Default sender |
 |---------|-----------|----------|---------------|----------------|
-| 🇺🇬 Uganda | `ESMS_UG` | UGX | 35.00 | eSMSAfrica |
+| 🇧🇫 Burkina Faso | `ESMS_BF` | XOF | 40.00 | eSMSAfrica |
+| 🇧🇮 Burundi | `ESMS_BI` | BIF | 50.00 | eSMSAfrica |
+| 🇨🇲 Cameroon | `ESMS_CM` | XAF | 25.00 | eSMSAfrica |
+| 🇨🇩 DR Congo | `ESMS_CD` | USD | 0.06 | eSMSAfrica |
+| 🇨🇬 Congo Brazzaville | `ESMS_CG` | XAF | 1.00 | eSMSAfrica |
+| 🇨🇮 Côte d'Ivoire | `ESMS_CI` | XOF | 30.00 | eSMSAfrica |
+| 🇪🇬 Egypt | `ESMS_EG` | EGP | 1.50 | eSMSAfrica |
+| 🇪🇹 Ethiopia | `ESMS_ET` | ETB | 18.00 | eSMSAfrica |
+| 🇬🇲 Gambia | `ESMS_GM` | GMD | 5.86 | eSMSAfrica |
+| 🇬🇭 Ghana | `ESMS_GH` | GHS | 0.09 | eSMSAfrica |
 | 🇰🇪 Kenya | `ESMS_KE` | KES | 1.20 | eSMSAfrica |
+| 🇱🇾 Libya | `ESMS_LY` | LYD | 4.00 | eSMSAfrica |
+| 🇲🇬 Madagascar | `ESMS_MG` | MGA | 3000.00 | eSMSAfrica |
+| 🇲🇼 Malawi | `ESMS_MW` | MWK | 70.00 | eSMSAfrica |
+| 🇲🇱 Mali | `ESMS_ML` | XOF | 200.00 | eSMSAfrica |
+| 🇲🇦 Morocco | `ESMS_MA` | MAD | 0.75 | eSMSAfrica |
+| 🇲🇿 Mozambique | `ESMS_MZ` | MZN | 3.00 | eSMSAfrica |
+| 🇲🇺 Mauritius | `ESMS_MU` | MUR | 3.70 | eSMSAfrica |
+| 🇳🇪 Niger | `ESMS_NE` | XOF | 40.00 | eSMSAfrica |
 | 🇳🇬 Nigeria | `ESMS_NG` | NGN | 9.10 | eSMSAfrica |
-| 🇬🇭 Ghana | `ESMS_GH` | GHS | 0.08 | eSMSAfrica |
-| 🇿🇦 South Africa | `ESMS_ZA` | ZAR | 0.15 | eSMSAfrica |
-| 🇹🇿 Tanzania | `ESMS_TZ` | TZS | 90.00 | eSMSAfrica |
-| 🇷🇼 Rwanda | `ESMS_RW` | RWF | 35.00 | eSMSAfrica |
+| 🇷🇼 Rwanda | `ESMS_RW` | RWF | 20.00 | eSMSAfrica |
+| 🇸🇳 Senegal | `ESMS_SN` | XOF | 40.11 | eSMSAfrica |
+| 🇿🇦 South Africa | `ESMS_ZA` | ZAR | 3.47 | eSMSAfrica |
+| 🇸🇸 South Sudan | `ESMS_SS` | SSP | 40.00 | eSMSAfrica |
+| 🇹🇿 Tanzania | `ESMS_TZ` | TZS | 30.00 | eSMSAfrica |
+| 🇺🇬 Uganda | `ESMS_UG` | UGX | 35.00 | eSMSAfrica |
+| 🇿🇲 Zambia | `ESMS_ZM` | ZMW | 0.70 | eSMSAfrica |
+| 🇿🇼 Zimbabwe | `ESMS_ZW` | ZIG | 16.00 | eSMSAfrica |
 
 <Callout>
-Pricing shown is in local currency per segment. Your wallet balance is automatically converted using live FX rates. See [Multi-currency billing](/docs/billing/currencies) for details.
+Pricing is in local currency per segment. Your wallet is automatically converted using live FX rates at send time. See [Multi-currency billing](/docs/billing/currencies) for details.
 </Callout>
 
 ## Get current pricing via API
@@ -35,7 +56,6 @@ Response:
 [
   {
     "code": "ESMS_UG",
-    "name": "Airtel Uganda",
     "country_code": "UG",
     "country_name": "Uganda",
     "currency": "UGX",
@@ -67,7 +87,6 @@ GET /api/routes/health
 [
   {
     "code": "ESMS_UG",
-    "name": "Airtel Uganda",
     "country_code": "UG",
     "total": 1000,
     "delivered": 950,
