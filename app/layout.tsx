@@ -1,7 +1,4 @@
 import { RootProvider } from 'fumadocs-ui/provider/next';
-import { DocsLayout } from 'fumadocs-ui/layouts/docs';
-import { source } from '@/lib/source';
-import { baseOptions } from '@/lib/layout.shared';
 import type { Metadata } from 'next';
 import './global.css';
 
@@ -27,9 +24,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           theme={{ defaultTheme: 'light', enableSystem: true }}
           search={{ options: { type: 'static' } }}
         >
-          <DocsLayout tree={source.getPageTree()} {...baseOptions()}>
-            {children}
-          </DocsLayout>
+          {children}
         </RootProvider>
       </body>
     </html>

@@ -3,7 +3,7 @@ import { loader } from 'fumadocs-core/source';
 import { iconHandler } from './icons';
 
 export const source = loader({
-  baseUrl: '/',
+  baseUrl: '/docs',
   source: docs.toFumadocsSource(),
   icon: iconHandler,
 });
