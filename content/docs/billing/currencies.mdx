@@ -11,9 +11,9 @@ eSMS Africa supports multiple currencies. Your **wallet** holds a balance in one
   before="1,500.00"
   after="1,499.06"
   currency="USD"
-  action="Route AT_UG — 100 segments"
+  action="Route ESMS_UG — 100 segments"
   calc={["35 UGX ÷ 3,726 (FX) = $0.0094 / seg", "Total: −$0.94 USD"]}
-  footer={{ left: "Route: AT_UG (Uganda)", right: "FX Rate: 1 USD = 3,726 UGX" }}
+  footer={{ left: "Route: ESMS_UG (Uganda)", right: "FX Rate: 1 USD = 3,726 UGX" }}
 />
 
 ## Supported wallet currencies
@@ -43,7 +43,7 @@ USD is used as the pivot currency for all conversions: `UGX → USD → KES`. Th
 
 ## Conversion example
 
-**Scenario:** wallet in KES, sending to Uganda (AT_UG route, 35 UGX/segment)
+**Scenario:** wallet in KES, sending to Uganda (ESMS_UG route, 35 UGX/segment)
 
 <FXConversion
   steps={[
@@ -52,7 +52,7 @@ USD is used as the pivot currency for all conversions: `UGX → USD → KES`. Th
     { amount: "1.213", currency: "KES", label: "× 129.13 (FX)" },
   ]}
   note="USD is the pivot currency — UGX → USD → KES"
-  footer={{ left: "Wallet: KES", right: "Route: AT_UG (Uganda)" }}
+  footer={{ left: "Wallet: KES", right: "Route: ESMS_UG (Uganda)" }}
 />
 
 Your transaction log will show `-1.21 KES` for a 1-segment message to Uganda.
@@ -63,11 +63,11 @@ Each route charges in its local currency:
 
 | Route | Country | Billing currency | Price/segment |
 |-------|---------|-----------------|---------------|
-| AT_UG | Uganda | UGX | 35.00 |
-| SAF_KE | Kenya | KES | 1.20 |
-| AT_NG | Nigeria | NGN | 9.10 |
-| AT_GH | Ghana | GHS | 0.08 |
-| AT_ZA | South Africa | ZAR | 0.15 |
+| ESMS_UG | Uganda | UGX | 35.00 |
+| ESMS_KE | Kenya | KES | 1.20 |
+| ESMS_NG | Nigeria | NGN | 9.10 |
+| ESMS_GH | Ghana | GHS | 0.08 |
+| ESMS_ZA | South Africa | ZAR | 0.15 |
 
 Check [Coverage & Pricing](/docs/help/coverage) for the full up-to-date list.
 

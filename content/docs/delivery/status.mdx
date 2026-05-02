@@ -7,10 +7,7 @@ description: Track the delivery status of your SMS messages.
 
 Every message goes through a series of status changes from the moment it is submitted until delivery confirmation (or failure).
 
-```
-queued → submitted → sent → delivered
-                           ↘ failed (with auto-retry up to 2×)
-```
+<MessageLifecycle />
 
 ## Status values
 
@@ -25,17 +22,17 @@ queued → submitted → sent → delivered
 
 ## Check status of a single message
 
-```
-GET /api/messages/{message_id}
+```http title="Endpoint"
+GET /api/messages/:message_id
 ```
 
-```json
+```json title="Response 200"
 {
   "id": "msg-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "phone": "+256712345678",
   "text": "Hello from eSMS Africa!",
   "sender_id": "eSMSAfrica",
-  "route": "AT_UG",
+  "route": "ESMS_UG",
   "country": "UG",
   "segments": 1,
   "cost": 35.00,
@@ -70,7 +67,7 @@ The `timeline` array shows every event for the message in chronological order.
 
 ## List messages
 
-```
+```http title="Endpoint"
 GET /api/messages?page=0&limit=20&status=delivered
 ```
 
@@ -84,31 +81,21 @@ GET /api/messages?page=0&limit=20&status=delivered
 
 If a message has `status: "failed"`, you can manually retry it:
 
-```
-POST /api/messages/{message_id}/retry
+```http title="Endpoint"
+POST /api/messages/:message_id/retry
 ```
 
-Response:
+The retry is dispatched as a **new send** — the response contains a fresh message ID. The original message's `retry_count` is incremented.
 
-```json
+```json title="Response 200"
 {
-  "id": "msg-...",
-  "status": "retrying",
+  "id": "9237c404-d73f-4fa6-813b-ab25bb8605d0",
+  "status": "failed",
   "retry_count": 1
 }
 ```
 
-The system automatically retries failed messages up to **2 times** before marking them permanently failed. The manual retry is in addition to automatic retries.
-
-## Export to CSV
-
-Download all messages (or filtered by status) as a CSV file:
-
-```
-GET /api/messages/export?status=failed
-```
-
-Returns a CSV with columns: `message_id`, `phone`, `sender_id`, `text`, `status`, `country`, `currency`, `cost`, `segments`, `created_at`, `delivered_at`.
+The system automatically retries failed messages up to **2 times** before marking them permanently failed. Manual retry is available on top of that.
 
 ## Real-time updates
 

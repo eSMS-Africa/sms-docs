@@ -9,13 +9,13 @@ eSMS Africa currently supports delivery to the following countries. Pricing is p
 
 | Country | Route code | Currency | Price/segment | Default sender |
 |---------|-----------|----------|---------------|----------------|
-| 🇺🇬 Uganda | `AT_UG` | UGX | 35.00 | eSMSAfrica |
-| 🇰🇪 Kenya | `SAF_KE` | KES | 1.20 | eSMSAfrica |
-| 🇳🇬 Nigeria | `AT_NG` | NGN | 9.10 | eSMSAfrica |
-| 🇬🇭 Ghana | `AT_GH` | GHS | 0.08 | eSMSAfrica |
-| 🇿🇦 South Africa | `AT_ZA` | ZAR | 0.15 | eSMSAfrica |
-| 🇹🇿 Tanzania | `AT_TZ` | TZS | 90.00 | eSMSAfrica |
-| 🇷🇼 Rwanda | `AT_RW` | RWF | 35.00 | eSMSAfrica |
+| 🇺🇬 Uganda | `ESMS_UG` | UGX | 35.00 | eSMSAfrica |
+| 🇰🇪 Kenya | `ESMS_KE` | KES | 1.20 | eSMSAfrica |
+| 🇳🇬 Nigeria | `ESMS_NG` | NGN | 9.10 | eSMSAfrica |
+| 🇬🇭 Ghana | `ESMS_GH` | GHS | 0.08 | eSMSAfrica |
+| 🇿🇦 South Africa | `ESMS_ZA` | ZAR | 0.15 | eSMSAfrica |
+| 🇹🇿 Tanzania | `ESMS_TZ` | TZS | 90.00 | eSMSAfrica |
+| 🇷🇼 Rwanda | `ESMS_RW` | RWF | 35.00 | eSMSAfrica |
 
 <Callout>
 Pricing shown is in local currency per segment. Your wallet balance is automatically converted using live FX rates. See [Multi-currency billing](/docs/billing/currencies) for details.
@@ -34,7 +34,7 @@ Response:
 ```json
 [
   {
-    "code": "AT_UG",
+    "code": "ESMS_UG",
     "name": "Airtel Uganda",
     "country_code": "UG",
     "country_name": "Uganda",
@@ -66,7 +66,7 @@ GET /api/routes/health
 ```json
 [
   {
-    "code": "AT_UG",
+    "code": "ESMS_UG",
     "name": "Airtel Uganda",
     "country_code": "UG",
     "total": 1000,

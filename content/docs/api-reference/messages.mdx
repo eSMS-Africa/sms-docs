@@ -16,7 +16,7 @@ Send a single SMS message.
   "to": "+256712345678",
   "text": "Your OTP is 482910.",
   "sender_id": "MyApp",
-  "route": "AT_UG"
+  "route": "ESMS_UG"
 }
 ```
 
@@ -34,20 +34,24 @@ Send a single SMS message.
   "id": "msg-a1b2c3d4",
   "status": "submitted",
   "segments": 1,
-  "cost": 35.00,
-  "cost_currency": "UGX",
-  "route": "AT_UG",
+  "cost": 1.2022,
+  "cost_currency": "KES",
+  "route_cost": 35.00,
+  "route_currency": "UGX",
+  "route": "ESMS_UG",
   "balance_after": 1965.00
 }
 ```
+
+`cost` / `cost_currency` is the wallet deduction. `route_cost` / `route_currency` is the carrier's native price.
 
 ### Errors
 
 | Code | Detail |
 |------|--------|
-| 400 | `invalid_phone` - phone cannot be parsed |
-| 400 | `no_route` - no active route for this country |
-| 422 | `insufficient_balance` - wallet balance too low |
+| 400 | `"Invalid phone number: ..."` - phone cannot be parsed or is missing country code |
+| 400 | `"No route found for ..."` - no active route for this country |
+| 422 | `"Insufficient balance. Required: ... available: ..."` - wallet balance too low |
 
 ---
 
@@ -84,7 +88,7 @@ Calculate cost of a bulk send before committing.
       "country_code": "UG",
       "country_name": "Uganda",
       "currency": "UGX",
-      "route_code": "AT_UG",
+      "route_code": "ESMS_UG",
       "contacts": 150,
       "segments": 200,
       "route_cost": 7000.00,
@@ -165,7 +169,7 @@ List messages with pagination and optional status filter.
       "phone": "+256712345678",
       "text": "Hello",
       "sender_id": "eSMSAfrica",
-      "route": "AT_UG",
+      "route": "ESMS_UG",
       "country": "UG",
       "segments": 1,
       "cost": 35.00,
@@ -199,7 +203,7 @@ Get full message details including the event timeline.
   "phone": "+256712345678",
   "text": "Hello",
   "sender_id": "eSMSAfrica",
-  "route": "AT_UG",
+  "route": "ESMS_UG",
   "country": "UG",
   "segments": 1,
   "cost": 35.00,
@@ -303,18 +307,3 @@ Daily message volume for the last N days.
 ]
 ```
 
----
-
-## GET /api/messages/export
-
-Export messages as a CSV download.
-
-**Auth:** Required
-
-### Query params
-
-| Param | Description |
-|-------|-------------|
-| `status` | Optional - filter by status |
-
-Returns `Content-Type: text/csv` with columns: `message_id`, `phone`, `sender_id`, `text`, `status`, `country`, `currency`, `cost`, `segments`, `created_at`, `delivered_at`.

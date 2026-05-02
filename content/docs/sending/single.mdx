@@ -16,7 +16,7 @@ POST /api/messages/send
   "to": "+254712345678",
   "text": "Your OTP is 482910. Valid for 5 minutes.",
   "sender_id": "MyApp",
-  "route": "SAF_KE"
+  "route": "ESMS_KE"
 }
 ```
 
@@ -25,7 +25,7 @@ POST /api/messages/send
 | `to` | string | Yes | Recipient phone in E.164 format (`+254...`) |
 | `text` | string | Yes | Message content. Up to 160 chars = 1 segment |
 | `sender_id` | string | No | Approved sender ID. Defaults to route's default sender |
-| `route` | string | No | Route code (e.g. `AT_UG`). Auto-detected from phone number if omitted |
+| `route` | string | No | Route code (e.g. `ESMS_UG`). Auto-detected from phone number if omitted |
 
 <Callout type="info">
 **E.164 format** means: `+` followed by country code, then subscriber number. No spaces, brackets, or dashes. Example: `+256712345678`.
@@ -38,9 +38,11 @@ POST /api/messages/send
   "id": "msg-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "status": "submitted",
   "segments": 1,
-  "cost": 35.00,
-  "cost_currency": "UGX",
-  "route": "AT_UG",
+  "cost": 1.2022,
+  "cost_currency": "KES",
+  "route_cost": 35.00,
+  "route_currency": "UGX",
+  "route": "ESMS_UG",
   "balance_after": 1965.00
 }
 ```
@@ -50,8 +52,10 @@ POST /api/messages/send
 | `id` | Unique message ID. Use this to [check delivery status](/docs/delivery/status) |
 | `status` | Initial status: `submitted` or `failed` |
 | `segments` | Number of SMS segments consumed (160 chars = 1, longer messages split automatically) |
-| `cost` | Cost in the route's billing currency |
-| `cost_currency` | 3-letter ISO currency code of the route |
+| `cost` | Amount deducted from your wallet, in your wallet currency |
+| `cost_currency` | Your wallet's 3-letter ISO currency code |
+| `route_cost` | Cost in the route's native billing currency |
+| `route_currency` | The route's native currency (e.g. `UGX` for Uganda routes) |
 | `route` | Route code used for delivery |
 | `balance_after` | Your wallet balance after the charge |
 
@@ -137,9 +141,6 @@ If you don't specify a `route`, the platform detects the destination country fro
 
 ```json title="Error response"
 {
-  "detail": {
-    "code": "insufficient_balance",
-    "message": "Insufficient balance. Required: 35 UGX, available: 10 UGX"
-  }
+  "detail": "Insufficient balance. Required: 35 UGX, available: 10 UGX"
 }
 ```
