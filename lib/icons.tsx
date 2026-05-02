@@ -54,6 +54,7 @@ export function iconHandler(name: string | undefined): ReactNode | undefined {
   if (!paths) return undefined;
   return (
     <svg
+      key={name}
       xmlns="http://www.w3.org/2000/svg"
       width="16"
       height="16"
