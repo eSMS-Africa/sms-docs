@@ -1,11 +1,19 @@
 import { source } from '@/lib/source';
-import { DocsBody, DocsDescription, DocsPage, DocsTitle, ViewOptionsPopover } from 'fumadocs-ui/layouts/docs/page';
+import {
+  DocsBody,
+  DocsDescription,
+  DocsPage,
+  DocsTitle,
+  MarkdownCopyButton,
+  ViewOptionsPopover,
+} from 'fumadocs-ui/layouts/docs/page';
 import { notFound } from 'next/navigation';
 import { getMDXComponents } from '@/components/mdx';
 import type { Metadata } from 'next';
 import { createRelativeLink } from 'fumadocs-ui/mdx';
 
 const GITHUB_CONTENT = 'https://github.com/eSMS-Africa/sms-docs/blob/main/content/docs';
+const RAW_CONTENT    = 'https://raw.githubusercontent.com/eSMS-Africa/sms-docs/main/content/docs';
 
 export default async function Page(props: { params: Promise<{ slug?: string[] }> }) {
   const params = await props.params;
@@ -19,10 +27,19 @@ export default async function Page(props: { params: Promise<{ slug?: string[] }>
     <DocsPage toc={page.data.toc}>
       <DocsTitle>{page.data.title}</DocsTitle>
       <DocsDescription>{page.data.description}</DocsDescription>
+
+      {/* Action buttons — top of content, before body */}
+      <div className="flex flex-row gap-2 items-center border-b pt-2 pb-6">
+        <MarkdownCopyButton markdownUrl={`${RAW_CONTENT}/${filePath}`} />
+        <ViewOptionsPopover
+          markdownUrl={`${RAW_CONTENT}/${filePath}`}
+          githubUrl={`${GITHUB_CONTENT}/${filePath}`}
+        />
+      </div>
+
       <DocsBody>
         <MDX components={getMDXComponents({ a: createRelativeLink(source, page) })} />
       </DocsBody>
-      <ViewOptionsPopover githubUrl={`${GITHUB_CONTENT}/${filePath}`} />
     </DocsPage>
   );
 }
