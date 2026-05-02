@@ -22,7 +22,7 @@ Replace `YOUR_API_KEY` and `YOUR_ACCOUNT_ID` with your credentials from the dash
 <Tabs items={["cURL", "Python", "Node.js", "PHP"]}>
 <Tab value="cURL">
 
-```bash
+```bash title="Terminal"
 curl -X POST https://sms.esmsafrica.io/api/messages/send \
   -H "Authorization: Bearer YOUR_API_KEY" \
   -H "Content-Type: application/json" \
@@ -35,7 +35,7 @@ curl -X POST https://sms.esmsafrica.io/api/messages/send \
 </Tab>
 <Tab value="Python">
 
-```python
+```python title="send_sms.py"
 import httpx
 
 resp = httpx.post(
@@ -52,7 +52,7 @@ print(resp.json())
 </Tab>
 <Tab value="Node.js">
 
-```js
+```js title="send_sms.js"
 const resp = await fetch("https://sms.esmsafrica.io/api/messages/send", {
   method: "POST",
   headers: {
@@ -72,7 +72,7 @@ console.log(data);
 </Tab>
 <Tab value="PHP">
 
-```php
+```php title="send_sms.php"
 $ch = curl_init("https://sms.esmsafrica.io/api/messages/send");
 curl_setopt_array($ch, [
   CURLOPT_RETURNTRANSFER => true,
@@ -95,7 +95,7 @@ echo $result;
 
 ### Successful response
 
-```json
+```json title="Response 200"
 {
   "id": "msg-a1b2c3d4",
   "status": "submitted",

@@ -2,144 +2,119 @@
 @import 'fumadocs-ui/css/neutral.css';
 @import 'fumadocs-ui/css/preset.css';
 
-/* ── Brand palette ───────────────────────────────────────────────── */
+/* ── Brand tokens ────────────────────────────────────────────────── */
 :root {
   --fd-primary: 24 95% 53%;
   --fd-primary-foreground: 0 0% 100%;
   --font-sans: 'Google Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'Google Sans Mono', ui-monospace, monospace;
 
-  /* Warm neutrals */
-  --color-fd-background:        hsl(40, 33%, 99%);
-  --color-fd-foreground:        #1f1b17;
-  --color-fd-card:              #ffffff;
-  --color-fd-card-foreground:   #1f1b17;
-  --color-fd-border:            #ece6de;
-  --color-fd-muted:             #faf7f4;
-  --color-fd-muted-foreground:  #7a7269;
-  --color-fd-secondary:         #faf7f4;
+  /* Warm light palette */
+  --color-fd-background:           hsl(40, 33%, 99%);
+  --color-fd-foreground:           #1f1b17;
+  --color-fd-card:                 #ffffff;
+  --color-fd-card-foreground:      #1f1b17;
+  --color-fd-border:               #ece6de;
+  --color-fd-muted:                #faf7f4;
+  --color-fd-muted-foreground:     #7a7269;
+  --color-fd-secondary:            #faf7f4;
   --color-fd-secondary-foreground: #3a332c;
-  --color-fd-popover:           #ffffff;
-  --color-fd-popover-foreground: #1f1b17;
+  --color-fd-popover:              #ffffff;
+  --color-fd-popover-foreground:   #1f1b17;
+  --color-fd-accent:               #f5f2ec;
+  --color-fd-accent-foreground:    #1f1b17;
 }
 
+/* Dark mode — proper dark palette */
 .dark {
-  --color-fd-background:        hsl(40, 33%, 99%);
-  --color-fd-foreground:        #1f1b17;
-  --color-fd-card:              #ffffff;
-  --color-fd-border:            #ece6de;
-  --color-fd-muted:             #faf7f4;
-  --color-fd-muted-foreground:  #7a7269;
-  --color-fd-secondary:         #faf7f4;
-  --color-fd-secondary-foreground: #3a332c;
-  --color-fd-popover:           #ffffff;
-  --color-fd-popover-foreground: #1f1b17;
+  --color-fd-background:           hsl(222, 14%, 10%);
+  --color-fd-foreground:           hsl(210, 20%, 92%);
+  --color-fd-card:                 hsl(222, 14%, 13%);
+  --color-fd-card-foreground:      hsl(210, 20%, 92%);
+  --color-fd-border:               hsl(220, 14%, 20%);
+  --color-fd-muted:                hsl(222, 14%, 16%);
+  --color-fd-muted-foreground:     hsl(215, 12%, 55%);
+  --color-fd-secondary:            hsl(222, 14%, 16%);
+  --color-fd-secondary-foreground: hsl(210, 20%, 85%);
+  --color-fd-popover:              hsl(222, 14%, 13%);
+  --color-fd-popover-foreground:   hsl(210, 20%, 92%);
+  --color-fd-accent:               hsl(222, 14%, 18%);
+  --color-fd-accent-foreground:    hsl(210, 20%, 92%);
 }
 
 html {
   scrollbar-gutter: stable;
   font-family: var(--font-sans);
-  color: #1f1b17;
 }
 
 /* ── Sidebar ─────────────────────────────────────────────────────── */
 #nd-sidebar {
-  background: #ffffff;
-  border-inline-end: 1px solid #ece6de;
   font-family: var(--font-sans);
   font-size: 13px;
 }
 
 /* Section labels (SidebarSeparator renders as <p>) */
-#nd-sidebar p {
+#nd-sidebar [data-radix-scroll-area-viewport] p {
   font-family: var(--font-mono) !important;
   font-size: 10px !important;
-  font-weight: 500 !important;
+  font-weight: 600 !important;
   text-transform: uppercase !important;
-  letter-spacing: 0.08em !important;
-  color: #a39a8e !important;
-  margin-top: 4px;
+  letter-spacing: 0.09em !important;
+  color: var(--color-fd-muted-foreground) !important;
+  padding-inline: 14px !important;
+  margin-top: 20px !important;
+  margin-bottom: 2px !important;
 }
 
-/* All clickable nav items: links and folder trigger buttons */
-#nd-sidebar a,
-#nd-sidebar [role='button'],
-#nd-sidebar button.w-full {
+/*
+  Nav tree items only — scoped to the Radix scroll viewport so the
+  search button and footer icon links are unaffected.
+*/
+#nd-sidebar [data-radix-scroll-area-viewport] a,
+#nd-sidebar [data-radix-scroll-area-viewport] button {
+  border-radius: 6px !important;
   font-size: 13px !important;
   font-weight: 500 !important;
-  color: #3a332c !important;
-  border-radius: 10px !important;
   padding: 7px 10px !important;
+  margin-inline: 8px !important;
+  width: calc(100% - 16px) !important;
   gap: 10px !important;
+  color: var(--color-fd-muted-foreground) !important;
   transition: background 0.12s ease, color 0.12s ease !important;
 }
 
-/* Hover — warm beige */
-#nd-sidebar a:not([data-active='true']):hover,
-#nd-sidebar button.w-full:hover {
-  background: #f5f2ec !important;
-  color: #1f1b17 !important;
+/* Hover — subtle warm tint */
+#nd-sidebar [data-radix-scroll-area-viewport] a:hover,
+#nd-sidebar [data-radix-scroll-area-viewport] button:hover {
+  background: var(--color-fd-accent) !important;
+  color: var(--color-fd-foreground) !important;
 }
 
-/* Active — dark ink fill, white text (sms-app style) */
-#nd-sidebar a[data-active='true'] {
+/* Active item — dark ink in light mode, brand orange in dark */
+#nd-sidebar [data-radix-scroll-area-viewport] a[data-active='true'] {
   background: #1f1b17 !important;
   color: #ffffff !important;
+  font-weight: 600 !important;
 }
-#nd-sidebar a[data-active='true']:hover {
-  background: #2a231c !important;
+.dark #nd-sidebar [data-radix-scroll-area-viewport] a[data-active='true'] {
+  background: hsl(24, 95%, 53%) !important;
   color: #ffffff !important;
 }
 
-/* Icons: muted by default, inherit on hover/active */
-#nd-sidebar svg {
-  color: #7a7269;
-  flex-shrink: 0;
+/* Active item icon + active indicator bar */
+#nd-sidebar [data-radix-scroll-area-viewport] a[data-active='true'] svg {
+  color: #ffffff !important;
 }
-#nd-sidebar a:not([data-active='true']):hover svg,
-#nd-sidebar button.w-full:hover svg {
-  color: #3a332c;
-}
-#nd-sidebar a[data-active='true'] svg {
-  color: #ffffff;
+#nd-sidebar [data-radix-scroll-area-viewport] a[data-active='true']::before {
+  display: none !important;
 }
 
-/* Folder chevron inherits correctly */
-#nd-sidebar [data-icon] {
-  color: inherit !important;
+/* Remove tree-connector line from folder content */
+#nd-sidebar [data-radix-scroll-area-viewport] .relative::before {
+  display: none !important;
 }
 
-/* Viewport scroll area padding */
-#nd-sidebar [data-radix-scroll-area-viewport] > div {
-  padding: 4px 12px 16px !important;
-}
-
-/* ── Top nav / header ────────────────────────────────────────────── */
-header,
-.fd-nav {
-  border-bottom: 1px solid #ece6de;
-  background: rgba(255, 255, 255, 0.9);
-  backdrop-filter: blur(8px);
-  font-family: var(--font-sans);
-}
-
-/* ── Content typography ──────────────────────────────────────────── */
-.prose,
-[class*='fd-prose'],
-.nd-content {
-  font-family: var(--font-sans);
-  color: #3a332c;
-  line-height: 1.65;
-}
-
-h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-sans);
-  font-weight: 700;
-  letter-spacing: -0.02em;
-  color: #1f1b17;
-}
-
-/* Inline code */
+/* ── Inline code ─────────────────────────────────────────────────── */
 :not(pre) > code {
   background: #fff4ec;
   color: #c2410c;
@@ -149,9 +124,8 @@ h1, h2, h3, h4, h5, h6 {
   font-size: 0.875em;
   font-family: var(--font-mono);
 }
-
-/* ── Cards (home page) ───────────────────────────────────────────── */
-.fd-card,
-[class*='card'] {
-  border-radius: 10px;
+.dark :not(pre) > code {
+  background: hsl(24, 40%, 15%);
+  color: hsl(24, 90%, 70%);
+  border-color: hsl(24, 40%, 25%);
 }

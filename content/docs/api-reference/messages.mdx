@@ -11,7 +11,7 @@ Send a single SMS message.
 
 ### Request body
 
-```json
+```json title="POST /api/messages/send"
 {
   "to": "+256712345678",
   "text": "Your OTP is 482910.",
@@ -29,7 +29,7 @@ Send a single SMS message.
 
 ### Response `200`
 
-```json
+```json title="Response 200"
 {
   "id": "msg-a1b2c3d4",
   "status": "submitted",

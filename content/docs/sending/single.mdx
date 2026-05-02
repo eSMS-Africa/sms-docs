@@ -5,13 +5,13 @@ description: Send a single SMS message to any supported African country.
 
 ## Endpoint
 
-```
+```http title="Endpoint"
 POST /api/messages/send
 ```
 
 ## Request
 
-```json
+```json title="Request body"
 {
   "to": "+254712345678",
   "text": "Your OTP is 482910. Valid for 5 minutes.",
@@ -33,7 +33,7 @@ POST /api/messages/send
 
 ## Response
 
-```json
+```json title="Response 200"
 {
   "id": "msg-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "status": "submitted",
@@ -60,7 +60,7 @@ POST /api/messages/send
 <Tabs items={["cURL", "Python", "Node.js"]}>
 <Tab value="cURL">
 
-```bash
+```bash title="Terminal"
 curl -X POST https://sms.esmsafrica.io/api/messages/send \
   -H "Authorization: Bearer esms_live_YOUR_KEY" \
   -H "Content-Type: application/json" \
@@ -74,7 +74,7 @@ curl -X POST https://sms.esmsafrica.io/api/messages/send \
 </Tab>
 <Tab value="Python">
 
-```python
+```python title="send_sms.py"
 import httpx
 
 resp = httpx.post(
@@ -93,7 +93,7 @@ print(f"Message ID: {msg['id']}, Status: {msg['status']}")
 </Tab>
 <Tab value="Node.js">
 
-```js
+```js title="send_sms.js"
 const resp = await fetch("https://sms.esmsafrica.io/api/messages/send", {
   method: "POST",
   headers: {
@@ -135,7 +135,7 @@ If you don't specify a `route`, the platform detects the destination country fro
 | 422 | `insufficient_balance` | Wallet balance too low to send this message |
 | 401 | - | Missing or invalid API key |
 
-```json
+```json title="Error response"
 {
   "detail": {
     "code": "insufficient_balance",

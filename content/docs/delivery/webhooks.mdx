@@ -9,11 +9,11 @@ Webhooks deliver real-time delivery report (DLR) notifications to your server wh
 
 Go to **Settings → Webhooks** in the portal, or use the API:
 
-```
+```http title="Endpoint"
 PUT /api/webhooks
 ```
 
-```json
+```json title="Request body"
 {
   "dlr_url": "https://yourapp.com/webhooks/sms-dlr"
 }
@@ -23,7 +23,7 @@ The platform will send a `POST` request to your `dlr_url` for every delivery sta
 
 ## Webhook payload
 
-```json
+```json title="POST to your dlr_url"
 {
   "type": "message_status",
   "message_id": "msg-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
@@ -55,7 +55,7 @@ Every webhook request is signed with HMAC-SHA256. Verify signatures to ensure re
 
 ### Signature header
 
-```http
+```http title="Request header"
 X-Webhook-Signature: t=1746184806,v1=abc123def456...
 ```
 
@@ -68,7 +68,7 @@ The header contains:
 <Tabs items={["Python", "Node.js", "PHP"]}>
 <Tab value="Python">
 
-```python
+```python title="verify_webhook.py"
 import hashlib
 import hmac
 import time
@@ -93,7 +93,7 @@ def verify_signature(payload: bytes, header: str, secret: str) -> bool:
 </Tab>
 <Tab value="Node.js">
 
-```js
+```js title="verifyWebhook.js"
 const crypto = require("crypto");
 
 function verifySignature(payload, header, secret) {
@@ -117,7 +117,7 @@ function verifySignature(payload, header, secret) {
 </Tab>
 <Tab value="PHP">
 
-```php
+```php title="verify_webhook.php"
 function verifySignature(string $payload, string $header, string $secret): bool {
     $parts = [];
     foreach (explode(',', $header) as $part) {
@@ -142,11 +142,11 @@ function verifySignature(string $payload, string $header, string $secret): bool 
 
 ### Get your signing secret
 
-```
+```http title="Endpoint"
 GET /api/webhooks
 ```
 
-```json
+```json title="Response 200"
 {
   "dlr_url": "https://yourapp.com/webhooks/sms-dlr",
   "signing_secret": "whsec_abc123...",
@@ -156,7 +156,7 @@ GET /api/webhooks
 
 To rotate the secret (e.g. after a suspected leak):
 
-```
+```http title="Endpoint"
 POST /api/webhooks/rotate-secret
 ```
 
@@ -181,7 +181,7 @@ After 3 failed attempts, the webhook delivery is abandoned for that event.
 <Tabs items={["Python (FastAPI)", "Node.js (Express)"]}>
 <Tab value="Python (FastAPI)">
 
-```python
+```python title="webhook_handler.py"
 from fastapi import FastAPI, Request, HTTPException
 import hashlib, hmac, time
 
@@ -209,7 +209,7 @@ async def dlr_handler(request: Request):
 </Tab>
 <Tab value="Node.js (Express)">
 
-```js
+```js title="webhookHandler.js"
 const express = require("express");
 const crypto = require("crypto");
 

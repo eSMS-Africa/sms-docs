@@ -19,11 +19,11 @@ Bulk send lets you deliver personalised messages to a contact list. Use it for m
 
 Before sending, call the pre-check endpoint to see a full cost breakdown and confirm your balance is sufficient.
 
-```
+```http title="Endpoint"
 POST /api/messages/bulk-precheck
 ```
 
-```json
+```json title="Request body"
 {
   "contact_list_ids": [1, 2],
   "text": "Hi {{name}}, you have a new message from {{company}}.",
@@ -33,7 +33,7 @@ POST /api/messages/bulk-precheck
 
 Response:
 
-```json
+```json title="Response 200"
 {
   "total_contacts": 250,
   "total_segments": 350,
@@ -78,11 +78,11 @@ The `unroutable` list shows numbers we couldn't route - unsupported country code
 
 ## Send bulk
 
-```
+```http title="Endpoint"
 POST /api/messages/send-bulk
 ```
 
-```json
+```json title="Request body"
 {
   "contact_list_ids": [1, 2],
   "text": "Hi {{name}}, your balance is {{balance}} {{currency}}.",
@@ -103,7 +103,7 @@ POST /api/messages/send-bulk
 
 Response:
 
-```json
+```json title="Response 200"
 {
   "batch_id": "batch-uuid",
   "total_recipients": 250,
@@ -118,7 +118,7 @@ Response:
 
 All messages dispatched immediately in the background. Returns as soon as the batch is queued.
 
-```json
+```json title="Instant delivery"
 { "schedule_mode": "now" }
 ```
 
@@ -126,7 +126,7 @@ All messages dispatched immediately in the background. Returns as soon as the ba
 
 Messages are held until `scheduled_at`, then dispatched.
 
-```json
+```json title="Scheduled delivery"
 {
   "schedule_mode": "scheduled",
   "scheduled_at": "2026-06-01T09:00:00Z"
@@ -141,7 +141,7 @@ Messages are held until `scheduled_at`, then dispatched.
 
 Messages sent at a controlled rate to avoid overwhelming recipients or carrier limits.
 
-```json
+```json title="Drip delivery"
 {
   "schedule_mode": "drip",
   "drip_rate": 60
@@ -162,7 +162,7 @@ Personalise messages with column values from your CSV:
 
 Example CSV:
 
-```csv
+```csv title="contacts.csv"
 phone,name,balance,currency
 +256712345678,Alice,1500,UGX
 +254700123456,Bob,250,KES
@@ -179,7 +179,7 @@ Renders as:
 <Tabs items={["cURL", "Python"]}>
 <Tab value="cURL">
 
-```bash
+```bash title="Terminal"
 # Pre-check
 curl -X POST https://sms.esmsafrica.io/api/messages/bulk-precheck \
   -H "Authorization: Bearer esms_live_YOUR_KEY" \
@@ -200,7 +200,7 @@ curl -X POST https://sms.esmsafrica.io/api/messages/send-bulk \
 </Tab>
 <Tab value="Python">
 
-```python
+```python title="bulk_send.py"
 import httpx
 
 headers = {"Authorization": "Bearer esms_live_YOUR_KEY"}

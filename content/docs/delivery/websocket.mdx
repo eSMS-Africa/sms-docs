@@ -7,13 +7,13 @@ The eSMS Africa platform exposes a WebSocket endpoint that pushes real-time even
 
 ## Connect
 
-```
+```text title="WebSocket URL"
 wss://sms.esmsafrica.io/ws
 ```
 
 Authentication is via the session cookie (`esms_access_token`). The browser sends it automatically when connecting from an authenticated session.
 
-```js
+```js title="connect.js"
 const ws = new WebSocket("wss://sms.esmsafrica.io/ws");
 
 ws.addEventListener("open", () => {
@@ -36,7 +36,7 @@ WebSocket auth uses the same session cookie as the portal. For server-to-server 
 
 Fired whenever a message reaches a new delivery state.
 
-```json
+```json title="message_status event"
 {
   "type": "message_status",
   "message_id": "msg-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
@@ -50,7 +50,7 @@ Fired whenever a message reaches a new delivery state.
 
 Fired after each successful send - your balance decreases. Also fired when a credit is applied to your account.
 
-```json
+```json title="balance_update event"
 {
   "type": "balance_update",
   "balance": 1965.00,
@@ -62,7 +62,7 @@ Fired after each successful send - your balance decreases. Also fired when a cre
 
 Fired when an in-app notification is created (e.g. sender ID approved, payment received).
 
-```json
+```json title="notification event"
 {
   "type": "notification",
   "id": 42,
@@ -77,7 +77,7 @@ Fired when an in-app notification is created (e.g. sender ID approved, payment r
 
 To prevent the connection from being dropped by proxies, send a ping every 30 seconds:
 
-```js
+```js title="Keep-alive"
 setInterval(() => {
   if (ws.readyState === WebSocket.OPEN) {
     ws.send(JSON.stringify({ type: "ping" }));
@@ -93,7 +93,7 @@ The server responds with:
 
 ## Full example
 
-```js
+```js title="websocket.js"
 function connectWebSocket() {
   const ws = new WebSocket("wss://sms.esmsafrica.io/ws");
 
