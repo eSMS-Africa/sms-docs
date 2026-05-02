@@ -1,0 +1,145 @@
+---
+title: Send a Single SMS
+description: Send a single SMS message to any supported African country.
+---
+
+## Endpoint
+
+```
+POST /api/messages/send
+```
+
+## Request
+
+```json
+{
+  "to": "+254712345678",
+  "text": "Your OTP is 482910. Valid for 5 minutes.",
+  "sender_id": "MyApp",
+  "route": "SAF_KE"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `to` | string | Yes | Recipient phone in E.164 format (`+254...`) |
+| `text` | string | Yes | Message content. Up to 160 chars = 1 segment |
+| `sender_id` | string | No | Approved sender ID. Defaults to route's default sender |
+| `route` | string | No | Route code (e.g. `AT_UG`). Auto-detected from phone number if omitted |
+
+<Callout type="info">
+**E.164 format** means: `+` followed by country code, then subscriber number. No spaces, brackets, or dashes. Example: `+256712345678`.
+</Callout>
+
+## Response
+
+```json
+{
+  "id": "msg-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "status": "submitted",
+  "segments": 1,
+  "cost": 35.00,
+  "cost_currency": "UGX",
+  "route": "AT_UG",
+  "balance_after": 1965.00
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `id` | Unique message ID. Use this to [check delivery status](/docs/delivery/status) |
+| `status` | Initial status: `submitted` or `failed` |
+| `segments` | Number of SMS segments consumed (160 chars = 1, longer messages split automatically) |
+| `cost` | Cost in the route's billing currency |
+| `cost_currency` | 3-letter ISO currency code of the route |
+| `route` | Route code used for delivery |
+| `balance_after` | Your wallet balance after the charge |
+
+## Examples
+
+<Tabs items={["cURL", "Python", "Node.js"]}>
+<Tab value="cURL">
+
+```bash
+curl -X POST https://sms.esmsafrica.io/api/messages/send \
+  -H "Authorization: Bearer esms_live_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": "+256712345678",
+    "text": "Hello from eSMS Africa!",
+    "sender_id": "eSMSAfrica"
+  }'
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import httpx
+
+resp = httpx.post(
+    "https://sms.esmsafrica.io/api/messages/send",
+    headers={"Authorization": "Bearer esms_live_YOUR_KEY"},
+    json={
+        "to": "+256712345678",
+        "text": "Hello from eSMS Africa!",
+        "sender_id": "eSMSAfrica",
+    },
+)
+msg = resp.json()
+print(f"Message ID: {msg['id']}, Status: {msg['status']}")
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const resp = await fetch("https://sms.esmsafrica.io/api/messages/send", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer esms_live_YOUR_KEY",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    to: "+256712345678",
+    text: "Hello from eSMS Africa!",
+    sender_id: "eSMSAfrica",
+  }),
+});
+const msg = await resp.json();
+console.log(`Message ID: ${msg.id}, Status: ${msg.status}`);
+```
+
+</Tab>
+</Tabs>
+
+## SMS segments
+
+| Encoding | Single segment | Multi-segment |
+|----------|---------------|---------------|
+| GSM-7 (standard ASCII + Latin) | ≤ 160 chars | 153 chars per segment |
+| UCS-2 (Unicode, Arabic, CJK, emoji) | ≤ 70 chars | 67 chars per segment |
+
+Messages are automatically split into multiple segments when they exceed the single-segment limit. Each segment is billed separately.
+
+## Route auto-detection
+
+If you don't specify a `route`, the platform detects the destination country from the phone number and selects the appropriate route automatically. Check [Coverage & Pricing](/docs/help/coverage) for supported countries.
+
+## Error responses
+
+| Status | Code | Meaning |
+|--------|------|---------|
+| 400 | `invalid_phone` | Phone number could not be parsed or is invalid |
+| 400 | `no_route` | No active route for the destination country |
+| 422 | `insufficient_balance` | Wallet balance too low to send this message |
+| 401 | - | Missing or invalid API key |
+
+```json
+{
+  "detail": {
+    "code": "insufficient_balance",
+    "message": "Insufficient balance. Required: 35 UGX, available: 10 UGX"
+  }
+}
+```

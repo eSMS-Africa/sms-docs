@@ -1,0 +1,122 @@
+---
+title: Contacts API
+description: Full reference for contact list endpoints.
+---
+
+## POST /api/contact-lists
+
+Upload a CSV and create a contact list.
+
+**Auth:** Required  
+**Content-Type:** `multipart/form-data`
+
+### Form fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `file` | file | ✅ | CSV file (UTF-8) |
+| `name` | string | - | List name (defaults to filename) |
+| `tags` | string | - | Comma-separated tags |
+
+### Response `200`
+
+```json
+{
+  "id": 7,
+  "name": "Nigeria Q2 Leads",
+  "count": 1523,
+  "columns": ["phone", "name", "company"],
+  "tags": ["leads", "q2"]
+}
+```
+
+---
+
+## GET /api/contact-lists
+
+List all contact lists.
+
+**Auth:** Required
+
+### Query params
+
+| Param | Description |
+|-------|-------------|
+| `page` | 0-indexed page |
+| `limit` | 1–100 (default 20) |
+| `tag` | Filter by tag |
+
+### Response `200`
+
+```json
+{
+  "lists": [
+    {
+      "id": 7,
+      "name": "Nigeria Q2 Leads",
+      "count": 1523,
+      "columns": ["phone", "name", "company"],
+      "tags": ["leads", "q2"],
+      "created_at": "2026-05-02T10:00:00Z",
+      "updated_at": "2026-05-02T10:00:00Z"
+    }
+  ],
+  "total": 3
+}
+```
+
+---
+
+## GET /api/contact-lists/:list_id
+
+Get a single contact list.
+
+**Auth:** Required
+
+### Response `200`
+
+Same shape as a single item in the list response above.
+
+---
+
+## GET /api/contact-lists/:list_id/contacts
+
+Browse contacts in a list.
+
+**Auth:** Required
+
+### Query params
+
+| Param | Default | Description |
+|-------|---------|-------------|
+| `page` | `0` | 0-indexed page |
+| `limit` | `50` | 1–100 |
+
+### Response `200`
+
+```json
+{
+  "contacts": [
+    {
+      "id": 1,
+      "phone": "+234801234567",
+      "name": "Alice Obi",
+      "data": {
+        "company": "Acme Corp",
+        "tier": "premium"
+      }
+    }
+  ],
+  "total": 1523
+}
+```
+
+---
+
+## DELETE /api/contact-lists/:list_id
+
+Delete a contact list and all its contacts.
+
+**Auth:** Required
+
+Returns `204 No Content` on success. This operation is irreversible.

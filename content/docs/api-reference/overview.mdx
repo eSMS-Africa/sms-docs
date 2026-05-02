@@ -1,0 +1,140 @@
+---
+title: API Reference
+description: Complete reference for the eSMS Africa REST API.
+---
+
+## Base URL
+
+```
+https://sms.esmsafrica.io/api
+```
+
+## Authentication
+
+All endpoints require authentication. Pass your API key in the `Authorization` header:
+
+```http
+Authorization: Bearer esms_live_YOUR_KEY
+```
+
+See [Authentication](/docs/authentication) for full details.
+
+## Response format
+
+All responses are JSON. Successful responses return `2xx` with the response body. Errors return `4xx` or `5xx` with an error object.
+
+### Error response
+
+```json
+{
+  "detail": {
+    "code": "insufficient_balance",
+    "message": "Insufficient balance. Required: 35 UGX, available: 10 UGX"
+  }
+}
+```
+
+Or for validation errors:
+
+```json
+{
+  "detail": [
+    {
+      "loc": ["body", "to"],
+      "msg": "field required",
+      "type": "value_error.missing"
+    }
+  ]
+}
+```
+
+## Endpoints
+
+### Messages
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/messages/send` | Send a single SMS |
+| `POST` | `/messages/bulk-precheck` | Pre-check bulk send cost |
+| `POST` | `/messages/send-bulk` | Send bulk SMS |
+| `GET` | `/messages` | List messages |
+| `GET` | `/messages/{id}` | Get message + timeline |
+| `POST` | `/messages/{id}/retry` | Retry a failed message |
+| `GET` | `/messages/stats` | Dashboard KPIs |
+| `GET` | `/messages/volume` | Daily message volume |
+| `GET` | `/messages/export` | Export messages as CSV |
+
+### Balance & Billing
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/balance` | Get wallet balance |
+| `GET` | `/balance/transactions` | List transactions |
+| `POST` | `/balance/topup` | Initiate top-up |
+
+### Routes
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/routes` | List active routes |
+| `GET` | `/routes/{code}` | Get a route |
+| `GET` | `/routes/health` | Per-route delivery stats |
+| `GET` | `/pricing` | Public pricing (no auth required) |
+
+### Contacts
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/contact-lists` | Upload CSV contact list |
+| `GET` | `/contact-lists` | List contact lists |
+| `GET` | `/contact-lists/{id}` | Get a list |
+| `GET` | `/contact-lists/{id}/contacts` | Browse contacts |
+| `DELETE` | `/contact-lists/{id}` | Delete a list |
+
+### Webhooks
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/webhooks` | Get webhook config |
+| `PUT` | `/webhooks` | Update webhook config |
+| `POST` | `/webhooks/rotate-secret` | Rotate signing secret |
+
+### Sender IDs
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/sender-ids` | Request a sender ID |
+| `GET` | `/sender-ids` | List your sender IDs |
+
+### API Keys
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/api-keys` | Create an API key |
+| `GET` | `/api-keys` | List your API keys |
+| `DELETE` | `/api-keys/{id}` | Revoke an API key |
+
+### Account
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/auth/me` | Current user info + balance |
+| `GET` | `/workspace` | Get workspace details |
+| `PUT` | `/workspace` | Update workspace |
+| `GET` | `/notifications` | List notifications |
+| `GET` | `/notifications/unread-count` | Unread notification count |
+| `POST` | `/notifications/read-all` | Mark all as read |
+
+## Pagination
+
+List endpoints support pagination via `page` (0-indexed) and `limit` query params:
+
+```
+GET /api/messages?page=2&limit=50
+```
+
+Responses include `total`, `page`, and `limit`.
+
+## Rate limiting
+
+Requests are rate-limited per API key. If you exceed the limit you receive `429 Too Many Requests` with a `Retry-After` header.

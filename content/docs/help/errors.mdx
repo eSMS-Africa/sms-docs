@@ -1,0 +1,107 @@
+---
+title: Error Codes
+description: Complete list of API error codes and how to handle them.
+---
+
+## HTTP status codes
+
+| Status | Meaning |
+|--------|---------|
+| `200` | Success |
+| `400` | Bad request - invalid input |
+| `401` | Unauthorized - missing or invalid API key |
+| `403` | Forbidden - valid key but insufficient scope |
+| `404` | Not found |
+| `409` | Conflict - e.g. retrying a message that isn't failed |
+| `422` | Unprocessable - valid request but business rule violation |
+| `429` | Too many requests - rate limit exceeded |
+| `500` | Internal server error |
+
+## Error response format
+
+```json
+{
+  "detail": {
+    "code": "insufficient_balance",
+    "message": "Insufficient balance. Required: 35 UGX, available: 10 UGX"
+  }
+}
+```
+
+Validation errors return an array:
+
+```json
+{
+  "detail": [
+    {
+      "loc": ["body", "to"],
+      "msg": "field required",
+      "type": "value_error.missing"
+    }
+  ]
+}
+```
+
+## Common error codes
+
+### Send errors
+
+| Code | Status | Description | Resolution |
+|------|--------|-------------|------------|
+| `invalid_phone` | 400 | Phone number cannot be parsed | Use E.164 format: `+256712345678` |
+| `no_route` | 400 | No active route for this country | Check [Coverage & Pricing](/docs/help/coverage) |
+| `insufficient_balance` | 422 | Wallet balance too low | [Top up](/docs/billing/balance) |
+| `sender_id_not_approved` | 403 | Sender ID not approved for this country | Use an [approved sender ID](/docs/sender-ids/request) or omit the field |
+| `text_too_long` | 400 | Message text exceeds maximum length | Split into shorter messages |
+
+### Authentication errors
+
+| Code | Status | Description | Resolution |
+|------|--------|-------------|------------|
+| `invalid_api_key` | 401 | Key not found or revoked | Create a new API key |
+| `expired_token` | 401 | JWT session expired | Re-login to the portal |
+| `insufficient_scope` | 403 | Key doesn't have required scope | Create a key with the needed scope |
+
+### Contact list errors
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `no_phone_column` | 400 | CSV has no recognizable phone column |
+| `empty_list` | 400 | CSV has no valid rows after processing |
+| `file_too_large` | 400 | CSV exceeds 50 MB limit |
+
+### Retry errors
+
+| Code | Status | Description |
+|------|--------|-------------|
+| `not_retryable` | 409 | Message is not in a failed state |
+| `max_retries_exceeded` | 409 | Message has reached maximum retry count |
+
+## DLR status codes
+
+These are carrier-level delivery report codes returned in webhook payloads and message timelines.
+
+| DLR Status | Meaning | Message Status |
+|------------|---------|---------------|
+| `DELIVRD` | Delivered to handset | `delivered` |
+| `DELIVERED` | Delivered (alternate format) | `delivered` |
+| `ACCEPTD` | Accepted by carrier | `sent` |
+| `ENROUTE` | En route to handset | `sent` |
+| `ESME_ROK` | Gateway acknowledged | `sent` |
+| `UNDELIV` | Undeliverable | `failed` |
+| `REJECTD` | Rejected by carrier | `failed` |
+| `EXPIRED` | Message TTL expired | `failed` |
+| `FAILED` | Generic failure | `failed` |
+| `SUBMIT_FAIL` | Submission failed | `failed` (retried) |
+| `THROTTLED` | Carrier throttled | `failed` (retried) |
+
+## Rate limiting
+
+If you exceed the rate limit, you receive:
+
+```http
+HTTP/1.1 429 Too Many Requests
+Retry-After: 15
+```
+
+Wait the number of seconds in `Retry-After` before retrying. For high-volume use cases, contact support to increase your limits.

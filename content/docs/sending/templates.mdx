@@ -1,0 +1,67 @@
+---
+title: Templates & Variables
+description: Personalise bulk messages using template variables from your contact CSV.
+---
+
+## How template variables work
+
+When you send a bulk SMS, the platform replaces `{{variable_name}}` placeholders with values from each contact's CSV row before sending.
+
+## Built-in variables
+
+| Variable | Description |
+|----------|-------------|
+| `{{phone}}` | The contact's phone number in E.164 format |
+| `{{phone_number}}` | Same as `{{phone}}` |
+| `{{name}}` | The contact's name (from `name` or `first_name` column) |
+| `{{first_name}}` | Same as `{{name}}` |
+
+## Custom variables
+
+Any column in your CSV becomes a usable variable. Column headers map directly to `{{column_name}}`.
+
+### Example CSV
+
+```csv
+phone,name,amount,expiry_date,promo_code
++256712345678,Alice,50000,31 May,SAVE20
++254700123456,Bob,1200,31 May,SAVE20
++234801234567,Charlie,8000,31 May,SAVE20
+```
+
+### Example template
+
+```
+Hi {{name}}, you have {{amount}} points expiring on {{expiry_date}}.
+Use code {{promo_code}} for 20% off. Reply STOP to opt out.
+```
+
+### Rendered messages
+
+| Contact | Rendered text |
+|---------|--------------|
+| Alice | `Hi Alice, you have 50000 points expiring on 31 May. Use code SAVE20 for 20% off. Reply STOP to opt out.` |
+| Bob | `Hi Bob, you have 1200 points expiring on 31 May. Use code SAVE20 for 20% off. Reply STOP to opt out.` |
+
+## Missing values
+
+If a contact's row is missing a column that appears in the template, the placeholder is replaced with an empty string.
+
+For example, if `{{amount}}` is in the template but a contact has no `amount` column, the message renders as:
+
+```
+Hi Alice, you have  points expiring on 31 May.
+```
+
+To avoid this, ensure all contacts in your CSV have values for every variable you use in the template, or use different lists for different template variations.
+
+## Segment calculation with variables
+
+Because template rendering is per-contact, segment counts may vary. The pre-check endpoint (`POST /api/messages/bulk-precheck`) calculates segment counts using the actual rendered text for each contact.
+
+## Character encoding
+
+- Standard Latin characters (GSM-7): 160 chars = 1 segment
+- Unicode (emoji, Arabic, Swahili extended): 70 chars = 1 segment
+
+Variables like names and amounts are usually short and stay within GSM-7 range. Avoid inserting emoji or non-Latin characters via variables unless you expect UCS-2 billing.

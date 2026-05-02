@@ -1,0 +1,114 @@
+---
+title: Authentication
+description: How to authenticate with the eSMS Africa API using API keys or session cookies.
+---
+
+The eSMS Africa API supports two authentication methods.
+
+## API Keys (recommended for integrations)
+
+API keys are the recommended way to authenticate from your application, server, or scripts.
+
+### Create an API key
+
+1. Log in to [auth.esmsafrica.io](https://auth.esmsafrica.io)
+2. Go to **API Keys** in the sidebar
+3. Click **Create key**
+4. Choose a name and environment (`live` or `test`)
+5. Select the scopes you need
+6. Copy the full key - it's shown **once only**
+
+Keys look like this:
+
+```
+esms_live_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+esms_test_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+```
+
+### Use your key
+
+Pass it in the `Authorization` header on every request:
+
+```http
+Authorization: Bearer esms_live_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
+```
+
+<Tabs items={["cURL", "Python", "Node.js"]}>
+<Tab value="cURL">
+
+```bash
+curl https://sms.esmsafrica.io/api/messages \
+  -H "Authorization: Bearer esms_live_YOUR_KEY"
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import httpx
+
+client = httpx.Client(
+    base_url="https://sms.esmsafrica.io/api",
+    headers={"Authorization": "Bearer esms_live_YOUR_KEY"},
+)
+
+messages = client.get("/messages").json()
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const API_KEY = process.env.ESMS_API_KEY;
+
+async function esmsRequest(path, options = {}) {
+  return fetch(`https://sms.esmsafrica.io/api${path}`, {
+    ...options,
+    headers: {
+      "Authorization": `Bearer ${API_KEY}`,
+      "Content-Type": "application/json",
+      ...options.headers,
+    },
+  });
+}
+```
+
+</Tab>
+</Tabs>
+
+### API key scopes
+
+| Scope | What it allows |
+|-------|---------------|
+| `send` | Send single and bulk SMS messages |
+| `query` | Read messages, balance, and delivery status |
+| `webhooks` | Create and manage webhook configurations |
+
+<Callout type="warn">
+Never expose live API keys in client-side code, mobile apps, or public repositories. Use environment variables or a secrets manager.
+</Callout>
+
+### Test vs. live keys
+
+| Environment | Key prefix | Behaviour |
+|-------------|-----------|-----------|
+| `test` | `esms_test_` | Uses test balance; no real SMS sent |
+| `live` | `esms_live_` | Sends real messages; deducts live balance |
+
+Use `test` keys during development to avoid charges.
+
+## Session authentication (portal)
+
+When you use the eSMS Africa web portal, you are authenticated via an `esms_access_token` JWT cookie issued by the auth service. Session auth is handled automatically by the browser - you do not need to manage it manually.
+
+<Callout>
+Session auth is only available in browser contexts. For server-to-server integrations, always use API keys.
+</Callout>
+
+## Revoking a key
+
+Go to **API Keys** in the dashboard and click the delete icon next to any key. Revoked keys stop working immediately.
+
+## Rate limits
+
+Rate limits are applied per API key. If you exceed the limit, the API returns `429 Too Many Requests`. Contact support to increase limits for high-volume use cases.

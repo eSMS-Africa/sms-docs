@@ -1,0 +1,96 @@
+---
+title: Webhooks API
+description: Full reference for webhook configuration endpoints.
+---
+
+## GET /api/webhooks
+
+Get your webhook configuration.
+
+**Auth:** Required
+
+### Response `200`
+
+```json
+{
+  "dlr_url": "https://yourapp.com/webhooks/sms-dlr",
+  "mo_url": null,
+  "signing_secret": "whsec_abc123...",
+  "is_active": true
+}
+```
+
+---
+
+## PUT /api/webhooks
+
+Update your webhook configuration.
+
+**Auth:** Required
+
+### Request body
+
+All fields are optional. Omitted fields are unchanged.
+
+```json
+{
+  "dlr_url": "https://yourapp.com/webhooks/sms-dlr",
+  "is_active": true
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `dlr_url` | string | URL to receive delivery report callbacks |
+| `mo_url` | string | URL for incoming message (MO) callbacks |
+| `is_active` | boolean | Enable or disable webhook delivery |
+
+### Response `200`
+
+Same shape as `GET /api/webhooks`.
+
+---
+
+## POST /api/webhooks/rotate-secret
+
+Rotate the HMAC signing secret. Returns the new secret immediately.
+
+**Auth:** Required
+
+No request body required.
+
+### Response `200`
+
+```json
+{
+  "signing_secret": "whsec_newxyz789..."
+}
+```
+
+Update your webhook handler with the new secret **before** this endpoint returns, as the old secret stops working immediately.
+
+---
+
+## DLR webhook payload
+
+The platform sends `POST` requests to your `dlr_url` when message status reaches a terminal state.
+
+```json
+{
+  "type": "message_status",
+  "message_id": "msg-a1b2c3d4",
+  "status": "delivered",
+  "phone": "+256712345678",
+  "delivered_at": "2026-05-02T12:00:05Z",
+  "dlr_status": "DELIVRD",
+  "error_code": null,
+  "error_message": null,
+  "timestamp": "2026-05-02T12:00:06Z"
+}
+```
+
+**Signature header:** `X-Webhook-Signature: t=<unix_timestamp>,v1=<hmac_sha256>`
+
+See [Webhooks - signature verification](/docs/delivery/webhooks#signature-verification) for how to verify.
+
+Your endpoint must return `HTTP 200` within 10 seconds. Failed deliveries are retried 3 times with exponential backoff.

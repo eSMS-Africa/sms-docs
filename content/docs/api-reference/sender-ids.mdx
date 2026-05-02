@@ -1,0 +1,81 @@
+---
+title: Sender IDs API
+description: Full reference for sender ID request endpoints.
+---
+
+## POST /api/sender-ids
+
+Request a new sender ID for approval.
+
+**Auth:** Required
+
+### Request body
+
+```json
+{
+  "name": "MyApp",
+  "countries": ["UG", "KE", "NG"],
+  "use_case": "OTP delivery for fintech mobile app"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | ✅ | Sender name, 1–11 alphanumeric characters |
+| `countries` | array | ✅ | ISO 3166-1 alpha-2 country codes |
+| `use_case` | string | - | Description of how the sender ID will be used |
+
+### Response `200`
+
+```json
+{
+  "id": 5,
+  "name": "MyApp",
+  "countries": ["UG", "KE", "NG"],
+  "use_case": "OTP delivery for fintech mobile app",
+  "status": "pending",
+  "rejection_reason": null,
+  "created_at": "2026-05-02T10:00:00Z"
+}
+```
+
+---
+
+## GET /api/sender-ids
+
+List all your sender ID requests.
+
+**Auth:** Required
+
+### Response `200`
+
+```json
+[
+  {
+    "id": 5,
+    "name": "MyApp",
+    "countries": ["UG", "KE"],
+    "use_case": "OTP delivery",
+    "status": "approved",
+    "rejection_reason": null,
+    "created_at": "2026-05-02T10:00:00Z"
+  },
+  {
+    "id": 3,
+    "name": "TestBrand",
+    "countries": ["NG"],
+    "use_case": "Marketing",
+    "status": "rejected",
+    "rejection_reason": "Sender name too generic. Please use your brand name.",
+    "created_at": "2026-04-15T08:00:00Z"
+  }
+]
+```
+
+### Status values
+
+| `status` | Description |
+|----------|-------------|
+| `pending` | Under review |
+| `approved` | Approved - can be used in `sender_id` field |
+| `rejected` | Not approved. See `rejection_reason` |

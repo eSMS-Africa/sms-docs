@@ -1,0 +1,115 @@
+---
+title: Request a Sender ID
+description: How to request and get a sender ID approved for your account.
+---
+
+## How to request
+
+<Steps>
+
+1. Go to **Sender IDs** in the portal sidebar
+
+2. Click **Request sender ID**
+
+3. Fill in:
+   - **Sender name** - the ID you want (max 11 chars)
+   - **Countries** - select all countries you need it for
+   - **Use case** - describe what messages you'll send (OTP, marketing, alerts, etc.)
+
+4. Submit - your request goes to the admin team for review
+
+</Steps>
+
+## Via API
+
+```
+POST /api/sender-ids
+```
+
+```json
+{
+  "name": "MyApp",
+  "countries": ["UG", "KE", "NG"],
+  "use_case": "OTP delivery for fintech mobile app serving East Africa"
+}
+```
+
+Response:
+
+```json
+{
+  "id": 5,
+  "name": "MyApp",
+  "countries": ["UG", "KE", "NG"],
+  "use_case": "OTP delivery for fintech mobile app serving East Africa",
+  "status": "pending",
+  "rejection_reason": null,
+  "created_at": "2026-05-02T10:00:00Z"
+}
+```
+
+## Status flow
+
+```
+pending → approved
+        ↘ rejected (with reason)
+```
+
+| Status | Description |
+|--------|-------------|
+| `pending` | Awaiting review by the eSMS Africa team |
+| `approved` | Approved for the requested countries. You can now use it in API calls |
+| `rejected` | Not approved. The `rejection_reason` field explains why |
+
+## Approval timeline
+
+| Country | Typical time |
+|---------|-------------|
+| South Africa | 1–2 business days |
+| Uganda, Kenya, Ghana | 3–7 business days |
+| Nigeria | 7–14 business days (NCC registration required) |
+| Tanzania | 7–14 business days |
+
+<Callout>
+These timelines depend on carrier processing. Complex use cases (financial services, healthcare) may take longer due to additional compliance checks.
+</Callout>
+
+## List your sender IDs
+
+```
+GET /api/sender-ids
+```
+
+```json
+[
+  {
+    "id": 5,
+    "name": "MyApp",
+    "countries": ["UG", "KE"],
+    "status": "approved",
+    "rejection_reason": null,
+    "created_at": "2026-05-02T10:00:00Z"
+  }
+]
+```
+
+## Use an approved sender ID
+
+Once approved, pass it in your send requests:
+
+```json
+{
+  "to": "+256712345678",
+  "text": "Your OTP is 482910",
+  "sender_id": "MyApp"
+}
+```
+
+If `MyApp` is not approved for Uganda, the message will be rejected with a `sender_id_not_approved` error.
+
+## Tips for faster approval
+
+- Be specific in your **use case** - "OTP for user login" is better than "messaging"
+- Request only the countries you actually need - you can always add more later
+- Avoid generic names like `Info`, `Alert`, `SMS` - these are often reserved by carriers
+- For financial services, mention your regulatory status

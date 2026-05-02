@@ -1,0 +1,157 @@
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+
+/* ── Brand palette ───────────────────────────────────────────────── */
+:root {
+  --fd-primary: 24 95% 53%;
+  --fd-primary-foreground: 0 0% 100%;
+  --font-sans: 'Google Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'Google Sans Mono', ui-monospace, monospace;
+
+  /* Warm neutrals */
+  --color-fd-background:        hsl(40, 33%, 99%);
+  --color-fd-foreground:        #1f1b17;
+  --color-fd-card:              #ffffff;
+  --color-fd-card-foreground:   #1f1b17;
+  --color-fd-border:            #ece6de;
+  --color-fd-muted:             #faf7f4;
+  --color-fd-muted-foreground:  #7a7269;
+  --color-fd-secondary:         #faf7f4;
+  --color-fd-secondary-foreground: #3a332c;
+  --color-fd-popover:           #ffffff;
+  --color-fd-popover-foreground: #1f1b17;
+}
+
+.dark {
+  --color-fd-background:        hsl(40, 33%, 99%);
+  --color-fd-foreground:        #1f1b17;
+  --color-fd-card:              #ffffff;
+  --color-fd-border:            #ece6de;
+  --color-fd-muted:             #faf7f4;
+  --color-fd-muted-foreground:  #7a7269;
+  --color-fd-secondary:         #faf7f4;
+  --color-fd-secondary-foreground: #3a332c;
+  --color-fd-popover:           #ffffff;
+  --color-fd-popover-foreground: #1f1b17;
+}
+
+html {
+  scrollbar-gutter: stable;
+  font-family: var(--font-sans);
+  color: #1f1b17;
+}
+
+/* ── Sidebar ─────────────────────────────────────────────────────── */
+#nd-sidebar {
+  background: #ffffff;
+  border-inline-end: 1px solid #ece6de;
+  font-family: var(--font-sans);
+  font-size: 13px;
+}
+
+/* Section labels (SidebarSeparator renders as <p>) */
+#nd-sidebar p {
+  font-family: var(--font-mono) !important;
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.08em !important;
+  color: #a39a8e !important;
+  margin-top: 4px;
+}
+
+/* All clickable nav items: links and folder trigger buttons */
+#nd-sidebar a,
+#nd-sidebar [role='button'],
+#nd-sidebar button.w-full {
+  font-size: 13px !important;
+  font-weight: 500 !important;
+  color: #3a332c !important;
+  border-radius: 10px !important;
+  padding: 7px 10px !important;
+  gap: 10px !important;
+  transition: background 0.12s ease, color 0.12s ease !important;
+}
+
+/* Hover — warm beige */
+#nd-sidebar a:not([data-active='true']):hover,
+#nd-sidebar button.w-full:hover {
+  background: #f5f2ec !important;
+  color: #1f1b17 !important;
+}
+
+/* Active — dark ink fill, white text (sms-app style) */
+#nd-sidebar a[data-active='true'] {
+  background: #1f1b17 !important;
+  color: #ffffff !important;
+}
+#nd-sidebar a[data-active='true']:hover {
+  background: #2a231c !important;
+  color: #ffffff !important;
+}
+
+/* Icons: muted by default, inherit on hover/active */
+#nd-sidebar svg {
+  color: #7a7269;
+  flex-shrink: 0;
+}
+#nd-sidebar a:not([data-active='true']):hover svg,
+#nd-sidebar button.w-full:hover svg {
+  color: #3a332c;
+}
+#nd-sidebar a[data-active='true'] svg {
+  color: #ffffff;
+}
+
+/* Folder chevron inherits correctly */
+#nd-sidebar [data-icon] {
+  color: inherit !important;
+}
+
+/* Viewport scroll area padding */
+#nd-sidebar [data-radix-scroll-area-viewport] > div {
+  padding: 4px 12px 16px !important;
+}
+
+/* ── Top nav / header ────────────────────────────────────────────── */
+header,
+.fd-nav {
+  border-bottom: 1px solid #ece6de;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(8px);
+  font-family: var(--font-sans);
+}
+
+/* ── Content typography ──────────────────────────────────────────── */
+.prose,
+[class*='fd-prose'],
+.nd-content {
+  font-family: var(--font-sans);
+  color: #3a332c;
+  line-height: 1.65;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: var(--font-sans);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: #1f1b17;
+}
+
+/* Inline code */
+:not(pre) > code {
+  background: #fff4ec;
+  color: #c2410c;
+  border: 1px solid #ffd9bd;
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.875em;
+  font-family: var(--font-mono);
+}
+
+/* ── Cards (home page) ───────────────────────────────────────────── */
+.fd-card,
+[class*='card'] {
+  border-radius: 10px;
+}

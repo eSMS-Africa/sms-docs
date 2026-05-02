@@ -1,0 +1,123 @@
+---
+title: Bulk Send API
+description: Full reference for bulk SMS send endpoints.
+---
+
+See the [Bulk Send guide](/docs/sending/bulk) for a conceptual overview.
+
+## POST /api/messages/bulk-precheck
+
+Calculate the cost of a bulk send before committing.
+
+**Auth:** Required
+
+### Request body
+
+```json
+{
+  "contact_list_ids": [1, 2],
+  "text": "Hi {{name}}, your message here.",
+  "sender_id": "MyApp"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `contact_list_ids` | array | ✅ | IDs of contact lists to include |
+| `text` | string | ✅ | Message text (may include `{{variables}}`) |
+| `sender_id` | string | - | Approved sender ID |
+
+### Response `200`
+
+```json
+{
+  "total_contacts": 250,
+  "total_segments": 350,
+  "total_cost": 1.88,
+  "wallet_currency": "USD",
+  "wallet_balance": 5000.00,
+  "balance_after": 4998.12,
+  "sufficient_balance": true,
+  "countries": 2,
+  "breakdown": [
+    {
+      "country_code": "UG",
+      "country_name": "Uganda",
+      "currency": "UGX",
+      "route_code": "AT_UG",
+      "contacts": 150,
+      "segments": 200,
+      "route_cost": 7000.00,
+      "wallet_cost": 1.88,
+      "price_per_segment": 35.00
+    }
+  ],
+  "unroutable_count": 2,
+  "unroutable": ["+000000000", "+999000111"]
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `total_contacts` | Total contacts across all lists (after deduplication) |
+| `total_segments` | Sum of segments across all messages |
+| `total_cost` | Total cost in your wallet currency |
+| `wallet_currency` | Your wallet currency code |
+| `wallet_balance` | Current wallet balance |
+| `balance_after` | Projected balance after send |
+| `sufficient_balance` | `true` if you can afford the campaign |
+| `breakdown` | Per-country cost breakdown |
+| `unroutable_count` | Count of contacts that cannot be routed |
+| `unroutable` | Sample of unroutable phone numbers |
+
+---
+
+## POST /api/messages/send-bulk
+
+Execute a bulk SMS send.
+
+**Auth:** Required
+
+### Request body
+
+```json
+{
+  "contact_list_ids": [1, 2],
+  "text": "Hi {{name}}, your message here.",
+  "sender_id": "MyApp",
+  "route": null,
+  "schedule_mode": "now",
+  "scheduled_at": null,
+  "drip_rate": null
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `contact_list_ids` | array | ✅ | IDs of contact lists |
+| `text` | string | ✅ | Message text |
+| `sender_id` | string | - | Approved sender ID |
+| `route` | string | - | Force a specific route code |
+| `schedule_mode` | string | - | `now` (default), `scheduled`, `drip` |
+| `scheduled_at` | string | If `scheduled` | ISO 8601 UTC datetime (10 min – 90 days from now) |
+| `drip_rate` | integer | If `drip` | Messages per minute (1–600) |
+
+### Response `200`
+
+```json
+{
+  "batch_id": "batch-550e8400-e29b-41d4-a716",
+  "total_recipients": 250,
+  "estimated_cost": 1.88,
+  "status": "sending"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `batch_id` | Unique ID for this batch. Use to filter message logs |
+| `total_recipients` | Number of contacts queued |
+| `estimated_cost` | Estimated total cost in wallet currency |
+| `status` | `sending`, `scheduled`, or `dripping` |
+
+Messages from a batch share the same `batch_id`. Filter your message logs by `batch_id` to see all messages from a campaign.

@@ -1,0 +1,99 @@
+---
+title: Balance API
+description: Full reference for wallet balance and transaction endpoints.
+---
+
+## GET /api/balance
+
+Get your current wallet balance.
+
+**Auth:** Required
+
+### Response `200`
+
+```json
+{
+  "balance": 5000.50,
+  "currency": "USD"
+}
+```
+
+---
+
+## GET /api/balance/transactions
+
+List your transaction history.
+
+**Auth:** Required
+
+### Query params
+
+| Param | Default | Description |
+|-------|---------|-------------|
+| `page` | `0` | 0-indexed page |
+| `limit` | `20` | 1–100 |
+
+### Response `200`
+
+```json
+{
+  "transactions": [
+    {
+      "id": 101,
+      "type": "sms_charge",
+      "amount": -0.94,
+      "balance_after": 4999.56,
+      "currency": "USD",
+      "description": "SMS to +256712345678 via AT_UG (1 seg)",
+      "batch_id": null,
+      "created_at": "2026-05-02T12:00:01Z"
+    },
+    {
+      "id": 100,
+      "type": "credit",
+      "amount": 100.00,
+      "balance_after": 5000.50,
+      "currency": "USD",
+      "description": "Top up via Flutterwave",
+      "batch_id": null,
+      "created_at": "2026-05-01T09:00:00Z"
+    }
+  ],
+  "total": 87,
+  "page": 0,
+  "limit": 20
+}
+```
+
+### Transaction types
+
+| `type` | Description |
+|--------|-------------|
+| `credit` | Flutterwave or bank top-up |
+| `sms_charge` | Charge for a sent message |
+| `manual_credit` | Credit applied by support team |
+| `manual_debit` | Deduction applied by support team |
+| `refund` | Refund for failed delivery |
+
+Amounts are **negative for charges** and **positive for credits**.
+
+---
+
+## POST /api/balance/topup
+
+Initiate a wallet top-up via the payment portal.
+
+**Auth:** Required
+
+No request body required.
+
+### Response `200`
+
+```json
+{
+  "checkout_url": "https://auth.esmsafrica.io/payments/initiate",
+  "message": "Redirecting to payment portal"
+}
+```
+
+Redirect the user to `checkout_url` to complete payment via Flutterwave. After payment, the credit is applied automatically and the user is redirected back to the portal.

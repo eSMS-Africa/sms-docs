@@ -1,0 +1,229 @@
+---
+title: Bulk Send
+description: Send personalised SMS campaigns to thousands of contacts at once.
+---
+
+Bulk send lets you deliver personalised messages to a contact list. Use it for marketing campaigns, notifications, or announcements.
+
+## How it works
+
+<Steps>
+
+1. **Upload a contact list** - import a CSV with phone numbers and any custom fields
+2. **Pre-check cost** - get a per-country breakdown before you commit
+3. **Send** - choose instant, scheduled, or drip delivery
+
+</Steps>
+
+## Pre-check cost
+
+Before sending, call the pre-check endpoint to see a full cost breakdown and confirm your balance is sufficient.
+
+```
+POST /api/messages/bulk-precheck
+```
+
+```json
+{
+  "contact_list_ids": [1, 2],
+  "text": "Hi {{name}}, you have a new message from {{company}}.",
+  "sender_id": "MyApp"
+}
+```
+
+Response:
+
+```json
+{
+  "total_contacts": 250,
+  "total_segments": 350,
+  "total_cost": 1250.50,
+  "wallet_currency": "USD",
+  "wallet_balance": 5000.00,
+  "balance_after": 3749.50,
+  "sufficient_balance": true,
+  "countries": 3,
+  "breakdown": [
+    {
+      "country_code": "UG",
+      "country_name": "Uganda",
+      "currency": "UGX",
+      "route_code": "AT_UG",
+      "contacts": 150,
+      "segments": 200,
+      "route_cost": 7000.00,
+      "wallet_cost": 1.88,
+      "price_per_segment": 35.00
+    },
+    {
+      "country_code": "KE",
+      "country_name": "Kenya",
+      "currency": "KES",
+      "route_code": "SAF_KE",
+      "contacts": 100,
+      "segments": 150,
+      "route_cost": 180.00,
+      "wallet_cost": 1.39,
+      "price_per_segment": 1.20
+    }
+  ],
+  "unroutable_count": 2,
+  "unroutable": ["+999000111", "+000123456"]
+}
+```
+
+<Callout type="info">
+The `unroutable` list shows numbers we couldn't route - unsupported country codes or invalid numbers. They are skipped during the actual send.
+</Callout>
+
+## Send bulk
+
+```
+POST /api/messages/send-bulk
+```
+
+```json
+{
+  "contact_list_ids": [1, 2],
+  "text": "Hi {{name}}, your balance is {{balance}} {{currency}}.",
+  "sender_id": "MyApp",
+  "schedule_mode": "now"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `contact_list_ids` | array | Yes | IDs of contact lists to send to |
+| `text` | string | Yes | Message text. Supports `{{variable}}` placeholders |
+| `sender_id` | string | No | Approved sender ID |
+| `route` | string | No | Force a specific route (overrides auto-detection) |
+| `schedule_mode` | string | No | `now` (default), `scheduled`, or `drip` |
+| `scheduled_at` | string | Required if scheduled | ISO 8601 datetime, e.g. `2026-06-01T09:00:00Z` |
+| `drip_rate` | integer | Required if drip | Messages per minute (e.g. `60`) |
+
+Response:
+
+```json
+{
+  "batch_id": "batch-uuid",
+  "total_recipients": 250,
+  "estimated_cost": 1250.50,
+  "status": "sending"
+}
+```
+
+## Delivery modes
+
+### Instant (`now`)
+
+All messages dispatched immediately in the background. Returns as soon as the batch is queued.
+
+```json
+{ "schedule_mode": "now" }
+```
+
+### Scheduled
+
+Messages are held until `scheduled_at`, then dispatched.
+
+```json
+{
+  "schedule_mode": "scheduled",
+  "scheduled_at": "2026-06-01T09:00:00Z"
+}
+```
+
+- Minimum: 10 minutes in the future
+- Maximum: 90 days in the future
+- Stored securely until dispatch time
+
+### Drip
+
+Messages sent at a controlled rate to avoid overwhelming recipients or carrier limits.
+
+```json
+{
+  "schedule_mode": "drip",
+  "drip_rate": 60
+}
+```
+
+`drip_rate` is messages per minute. A list of 300 contacts at 60/min takes 5 minutes.
+
+## Template variables
+
+Personalise messages with column values from your CSV:
+
+| Variable | Resolves to |
+|----------|------------|
+| `{{phone}}` / `{{phone_number}}` | Recipient's phone number |
+| `{{name}}` / `{{first_name}}` | Name column from CSV |
+| `{{<any_column>}}` | Any column header from your CSV |
+
+Example CSV:
+
+```csv
+phone,name,balance,currency
++256712345678,Alice,1500,UGX
++254700123456,Bob,250,KES
+```
+
+Message: `Hi {{name}}, your balance is {{balance}} {{currency}}.`
+
+Renders as:
+- Alice: `Hi Alice, your balance is 1500 UGX.`
+- Bob: `Hi Bob, your balance is 250 KES.`
+
+## Examples
+
+<Tabs items={["cURL", "Python"]}>
+<Tab value="cURL">
+
+```bash
+# Pre-check
+curl -X POST https://sms.esmsafrica.io/api/messages/bulk-precheck \
+  -H "Authorization: Bearer esms_live_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"contact_list_ids":[1],"text":"Hi {{name}}, this is a test."}'
+
+# Send
+curl -X POST https://sms.esmsafrica.io/api/messages/send-bulk \
+  -H "Authorization: Bearer esms_live_YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "contact_list_ids": [1],
+    "text": "Hi {{name}}, this is a test.",
+    "schedule_mode": "now"
+  }'
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import httpx
+
+headers = {"Authorization": "Bearer esms_live_YOUR_KEY"}
+
+# Pre-check
+check = httpx.post(
+    "https://sms.esmsafrica.io/api/messages/bulk-precheck",
+    headers=headers,
+    json={"contact_list_ids": [1], "text": "Hi {{name}}, this is a test."},
+).json()
+
+if check["sufficient_balance"]:
+    result = httpx.post(
+        "https://sms.esmsafrica.io/api/messages/send-bulk",
+        headers=headers,
+        json={
+            "contact_list_ids": [1],
+            "text": "Hi {{name}}, this is a test.",
+            "schedule_mode": "now",
+        },
+    ).json()
+    print(f"Batch {result['batch_id']}: {result['total_recipients']} messages")
+```
+
+</Tab>
+</Tabs>

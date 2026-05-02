@@ -1,0 +1,128 @@
+---
+title: Real-time Updates (WebSocket)
+description: Connect via WebSocket to receive live message status and balance updates.
+---
+
+The eSMS Africa platform exposes a WebSocket endpoint that pushes real-time events to connected clients - no polling required.
+
+## Connect
+
+```
+wss://sms.esmsafrica.io/ws
+```
+
+Authentication is via the session cookie (`esms_access_token`). The browser sends it automatically when connecting from an authenticated session.
+
+```js
+const ws = new WebSocket("wss://sms.esmsafrica.io/ws");
+
+ws.addEventListener("open", () => {
+  console.log("Connected");
+});
+
+ws.addEventListener("message", (event) => {
+  const data = JSON.parse(event.data);
+  console.log(data);
+});
+```
+
+<Callout>
+WebSocket auth uses the same session cookie as the portal. For server-to-server integrations, use [webhooks](/docs/delivery/webhooks) instead.
+</Callout>
+
+## Events
+
+### `message_status`
+
+Fired whenever a message reaches a new delivery state.
+
+```json
+{
+  "type": "message_status",
+  "message_id": "msg-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "status": "delivered",
+  "dlr_status": "DELIVRD",
+  "updated_at": "2026-05-02T12:00:05Z"
+}
+```
+
+### `balance_update`
+
+Fired after each successful send - your balance decreases. Also fired when a credit is applied to your account.
+
+```json
+{
+  "type": "balance_update",
+  "balance": 1965.00,
+  "currency": "UGX"
+}
+```
+
+### `notification`
+
+Fired when an in-app notification is created (e.g. sender ID approved, payment received).
+
+```json
+{
+  "type": "notification",
+  "id": 42,
+  "notification_type": "sender_approved",
+  "title": "Sender ID approved",
+  "body": "MyApp has been approved for Uganda and Kenya.",
+  "link": "/sender-ids"
+}
+```
+
+## Keep-alive (ping/pong)
+
+To prevent the connection from being dropped by proxies, send a ping every 30 seconds:
+
+```js
+setInterval(() => {
+  if (ws.readyState === WebSocket.OPEN) {
+    ws.send(JSON.stringify({ type: "ping" }));
+  }
+}, 30_000);
+```
+
+The server responds with:
+
+```json
+{ "type": "pong" }
+```
+
+## Full example
+
+```js
+function connectWebSocket() {
+  const ws = new WebSocket("wss://sms.esmsafrica.io/ws");
+
+  ws.addEventListener("open", () => {
+    console.log("WS connected");
+    setInterval(() => ws.send(JSON.stringify({ type: "ping" })), 30_000);
+  });
+
+  ws.addEventListener("message", ({ data }) => {
+    const event = JSON.parse(data);
+
+    switch (event.type) {
+      case "message_status":
+        updateMessageRow(event.message_id, event.status);
+        break;
+      case "balance_update":
+        updateBalanceDisplay(event.balance, event.currency);
+        break;
+      case "notification":
+        showNotification(event.title, event.body);
+        break;
+    }
+  });
+
+  ws.addEventListener("close", () => {
+    // Reconnect after 3 seconds
+    setTimeout(connectWebSocket, 3_000);
+  });
+}
+
+connectWebSocket();
+```

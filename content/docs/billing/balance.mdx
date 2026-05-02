@@ -1,0 +1,121 @@
+---
+title: Balance & Wallet
+description: How your balance works, how to top up, and how charges are applied.
+---
+
+## How billing works
+
+eSMS Africa uses a **prepaid wallet** model. You deposit funds into your wallet and each message is charged against that balance in real time.
+
+<TransactionFlow
+  before="1,500.00"
+  after="1,499.06"
+  currency="USD"
+  action="Send 100 SMS to Uganda"
+  calc="100 × 35 UGX = 3,500 UGX → −0.94 USD"
+/>
+
+Charges happen at **send time** - not at delivery. If a message fails, you can request a refund via support.
+
+## Check your balance
+
+```
+GET /api/balance
+```
+
+```json
+{
+  "balance": 1499.06,
+  "currency": "USD"
+}
+```
+
+## Top up
+
+Top up via [sms.esmsafrica.io/payment](https://sms.esmsafrica.io/payment) using Flutterwave. Supported payment methods include:
+
+- Card (Visa, Mastercard)
+- Mobile money (M-Pesa, Airtel Money, MTN MoMo)
+- Bank transfer
+
+Or via API (redirects to the payment portal):
+
+```
+POST /api/balance/topup
+```
+
+Response:
+
+```json
+{
+  "checkout_url": "https://auth.esmsafrica.io/payments/initiate",
+  "message": "Redirecting to payment portal"
+}
+```
+
+## Transaction history
+
+```
+GET /api/balance/transactions?page=0&limit=20
+```
+
+```json
+{
+  "transactions": [
+    {
+      "id": 101,
+      "type": "sms_charge",
+      "amount": -0.94,
+      "balance_after": 1499.06,
+      "currency": "USD",
+      "description": "SMS to +256712345678 via AT_UG (1 seg)",
+      "created_at": "2026-05-02T12:00:01Z"
+    },
+    {
+      "id": 100,
+      "type": "credit",
+      "amount": 100.00,
+      "balance_after": 1500.00,
+      "currency": "USD",
+      "description": "Top up via Flutterwave",
+      "created_at": "2026-05-01T09:00:00Z"
+    }
+  ],
+  "total": 87,
+  "page": 0,
+  "limit": 20
+}
+```
+
+### Transaction types
+
+| Type | Description |
+|------|-------------|
+| `credit` | Funds added via Flutterwave or bank transfer |
+| `sms_charge` | Charged for a sent message |
+| `manual_credit` | Credit applied by the eSMS Africa team |
+| `manual_debit` | Deduction applied by the eSMS Africa team |
+| `refund` | Refund for failed message delivery |
+
+<Callout>
+Amounts are negative for charges and positive for credits.
+</Callout>
+
+## Insufficient balance
+
+If your balance is too low to send a message, the API returns:
+
+```json
+{
+  "detail": {
+    "code": "insufficient_balance",
+    "message": "Insufficient balance. Required: 35 UGX, available: 10 UGX"
+  }
+}
+```
+
+For bulk send, the pre-check endpoint (`POST /api/messages/bulk-precheck`) tells you in advance whether your balance is sufficient.
+
+## Low balance alerts
+
+You will receive an in-app notification and email when your balance drops below a configured threshold. Set your threshold in **Settings → Notifications**.

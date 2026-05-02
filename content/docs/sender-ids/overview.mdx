@@ -1,0 +1,48 @@
+---
+title: Sender IDs
+description: What sender IDs are and how they work across African countries.
+---
+
+A sender ID is the name or number displayed as the "From" field on a recipient's phone when they receive your SMS. Instead of seeing a random number, recipients see your brand name.
+
+## Types of sender IDs
+
+| Type | Example | Notes |
+|------|---------|-------|
+| Alphanumeric | `MyApp`, `ClinicSMS` | Max 11 characters. Most common for business use. Cannot receive replies. |
+| Numeric | `+254712345678` | A real phone number. Can receive replies. |
+| Short code | `20880` | Country-specific, requires carrier agreement. |
+
+The eSMS Africa platform primarily uses **alphanumeric sender IDs**.
+
+## Country requirements
+
+Sender ID requirements vary by country. Some require pre-registration with carriers before use.
+
+| Country | Registration required | Notes |
+|---------|----------------------|-------|
+| Kenya 🇰🇪 | Yes | Must register with carriers. 7–14 day approval. |
+| Uganda 🇺🇬 | Yes | Carrier registration required. |
+| Nigeria 🇳🇬 | Yes | NCC registration. Business docs required. |
+| Ghana 🇬🇭 | Yes | NCA registration. |
+| South Africa 🇿🇦 | No | Alphanumeric sender IDs allowed without registration. |
+| Tanzania 🇹🇿 | Yes | TCRA registration required. |
+
+<Callout type="warn">
+Using an unregistered sender ID in countries that require registration can result in message delivery failure or carrier blocking. Always request a sender ID before launching campaigns in new countries.
+</Callout>
+
+## Default sender IDs
+
+Each route has a default sender ID configured. If you don't specify `sender_id` in your API request, the route's default is used. You can view the default for each country on the [Coverage & Pricing](/docs/help/coverage) page.
+
+## Limits
+
+- Length: 1–11 characters (alphanumeric sender IDs)
+- Allowed characters: A–Z, a–z, 0–9, space
+- Cannot start or end with a space
+- Cannot be a reserved word (e.g., `FREE`, `INFO` in some countries)
+
+## Next step
+
+[Request a sender ID →](/docs/sender-ids/request)

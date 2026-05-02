@@ -1,0 +1,87 @@
+---
+title: Multi-currency
+description: How currency conversion works across African countries.
+---
+
+## How currencies work
+
+eSMS Africa supports multiple currencies. Your **wallet** holds a balance in one currency, while each **route** charges in its own local currency. The platform converts automatically at the time of send.
+
+<TransactionFlow
+  before="1,500.00"
+  after="1,499.06"
+  currency="USD"
+  action="Route AT_UG — 100 segments"
+  calc={["35 UGX ÷ 3,726 (FX) = $0.0094 / seg", "Total: −$0.94 USD"]}
+  footer={{ left: "Route: AT_UG (Uganda)", right: "FX Rate: 1 USD = 3,726 UGX" }}
+/>
+
+## Supported wallet currencies
+
+| Currency | Country | Code |
+|----------|---------|------|
+| US Dollar | International | USD |
+| Kenyan Shilling | Kenya | KES |
+| Ugandan Shilling | Uganda | UGX |
+| Nigerian Naira | Nigeria | NGN |
+| Ghanaian Cedi | Ghana | GHS |
+| South African Rand | South Africa | ZAR |
+| Tanzanian Shilling | Tanzania | TZS |
+| Rwandan Franc | Rwanda | RWF |
+| Zambian Kwacha | Zambia | ZMW |
+| Zimbabwe Gold | Zimbabwe | ZIG |
+
+Your wallet currency is set when you create your account. Contact support to change it.
+
+## FX rates
+
+Exchange rates are refreshed every **6 hours** from a live market data feed. The rate used for your transaction is shown in the transaction details.
+
+<Callout>
+USD is used as the pivot currency for all conversions: `UGX → USD → KES`. This ensures consistent, transparent pricing.
+</Callout>
+
+## Conversion example
+
+**Scenario:** wallet in KES, sending to Uganda (AT_UG route, 35 UGX/segment)
+
+<FXConversion
+  steps={[
+    { amount: "35", currency: "UGX", label: "Route price" },
+    { amount: "0.009394", currency: "USD", label: "÷ 3,726 (FX)" },
+    { amount: "1.213", currency: "KES", label: "× 129.13 (FX)" },
+  ]}
+  note="USD is the pivot currency — UGX → USD → KES"
+  footer={{ left: "Wallet: KES", right: "Route: AT_UG (Uganda)" }}
+/>
+
+Your transaction log will show `-1.21 KES` for a 1-segment message to Uganda.
+
+## Route currencies
+
+Each route charges in its local currency:
+
+| Route | Country | Billing currency | Price/segment |
+|-------|---------|-----------------|---------------|
+| AT_UG | Uganda | UGX | 35.00 |
+| SAF_KE | Kenya | KES | 1.20 |
+| AT_NG | Nigeria | NGN | 9.10 |
+| AT_GH | Ghana | GHS | 0.08 |
+| AT_ZA | South Africa | ZAR | 0.15 |
+
+Check [Coverage & Pricing](/docs/help/coverage) for the full up-to-date list.
+
+## Pre-check cost
+
+Use the bulk pre-check endpoint to see exact costs before sending:
+
+```
+POST /api/messages/bulk-precheck
+```
+
+The response shows:
+- `route_cost` - cost in the route's local currency
+- `wallet_cost` - cost in your wallet currency (after FX conversion)
+- `wallet_currency` - your wallet currency
+
+This lets you verify the exact amount that will be deducted from your wallet before you commit.

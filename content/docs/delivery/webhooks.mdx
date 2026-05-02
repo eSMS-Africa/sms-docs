@@ -1,0 +1,236 @@
+---
+title: Webhooks (DLR)
+description: Receive real-time delivery report callbacks when message status changes.
+---
+
+Webhooks deliver real-time delivery report (DLR) notifications to your server when a message reaches a terminal state - delivered or failed.
+
+## Configure your webhook
+
+Go to **Settings → Webhooks** in the portal, or use the API:
+
+```
+PUT /api/webhooks
+```
+
+```json
+{
+  "dlr_url": "https://yourapp.com/webhooks/sms-dlr"
+}
+```
+
+The platform will send a `POST` request to your `dlr_url` for every delivery status update.
+
+## Webhook payload
+
+```json
+{
+  "type": "message_status",
+  "message_id": "msg-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "status": "delivered",
+  "phone": "+256712345678",
+  "delivered_at": "2026-05-02T12:00:05Z",
+  "dlr_status": "DELIVRD",
+  "error_code": null,
+  "error_message": null,
+  "timestamp": "2026-05-02T12:00:06Z"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `type` | Always `message_status` |
+| `message_id` | The UUID returned when you sent the message |
+| `status` | `delivered` or `failed` |
+| `phone` | Recipient phone in E.164 format |
+| `delivered_at` | UTC timestamp of delivery (null if failed) |
+| `dlr_status` | Raw carrier DLR code (e.g. `DELIVRD`, `UNDELIV`) |
+| `error_code` | Carrier error code, if failed |
+| `error_message` | Human-readable failure reason |
+| `timestamp` | UTC timestamp the webhook was sent |
+
+## Signature verification
+
+Every webhook request is signed with HMAC-SHA256. Verify signatures to ensure requests are from eSMS Africa and not a third party.
+
+### Signature header
+
+```http
+X-Webhook-Signature: t=1746184806,v1=abc123def456...
+```
+
+The header contains:
+- `t` - Unix timestamp of the request
+- `v1` - HMAC-SHA256 signature
+
+### Verification
+
+<Tabs items={["Python", "Node.js", "PHP"]}>
+<Tab value="Python">
+
+```python
+import hashlib
+import hmac
+import time
+
+def verify_signature(payload: bytes, header: str, secret: str) -> bool:
+    parts = dict(p.split("=", 1) for p in header.split(","))
+    timestamp = parts.get("t", "")
+    signature = parts.get("v1", "")
+
+    # Reject requests older than 5 minutes
+    if abs(time.time() - int(timestamp)) > 300:
+        return False
+
+    signed_payload = f"{timestamp}.".encode() + payload
+    expected = hmac.new(secret.encode(), signed_payload, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, signature)
+
+# In your webhook handler:
+# verify_signature(request.body, request.headers["X-Webhook-Signature"], SIGNING_SECRET)
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const crypto = require("crypto");
+
+function verifySignature(payload, header, secret) {
+  const parts = Object.fromEntries(header.split(",").map(p => p.split("=")));
+  const timestamp = parts.t;
+  const signature = parts.v1;
+
+  // Reject requests older than 5 minutes
+  if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) return false;
+
+  const signedPayload = `${timestamp}.${payload}`;
+  const expected = crypto
+    .createHmac("sha256", secret)
+    .update(signedPayload)
+    .digest("hex");
+
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+}
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+function verifySignature(string $payload, string $header, string $secret): bool {
+    $parts = [];
+    foreach (explode(',', $header) as $part) {
+        [$k, $v] = explode('=', $part, 2);
+        $parts[$k] = $v;
+    }
+
+    $timestamp = $parts['t'] ?? '';
+    $signature = $parts['v1'] ?? '';
+
+    if (abs(time() - intval($timestamp)) > 300) return false;
+
+    $signed = $timestamp . '.' . $payload;
+    $expected = hash_hmac('sha256', $signed, $secret);
+
+    return hash_equals($expected, $signature);
+}
+```
+
+</Tab>
+</Tabs>
+
+### Get your signing secret
+
+```
+GET /api/webhooks
+```
+
+```json
+{
+  "dlr_url": "https://yourapp.com/webhooks/sms-dlr",
+  "signing_secret": "whsec_abc123...",
+  "is_active": true
+}
+```
+
+To rotate the secret (e.g. after a suspected leak):
+
+```
+POST /api/webhooks/rotate-secret
+```
+
+<Callout type="warn">
+After rotating, update your signing secret in all webhook handlers before the old secret expires. Deliveries will fail verification until you update.
+</Callout>
+
+## Responding to webhooks
+
+Your endpoint must return `HTTP 200` within **10 seconds**. If it times out or returns a non-2xx status, the platform will retry with exponential backoff.
+
+| Attempt | Delay |
+|---------|-------|
+| 1st retry | 30 seconds |
+| 2nd retry | 5 minutes |
+| 3rd retry | 30 minutes |
+
+After 3 failed attempts, the webhook delivery is abandoned for that event.
+
+## Example webhook handler
+
+<Tabs items={["Python (FastAPI)", "Node.js (Express)"]}>
+<Tab value="Python (FastAPI)">
+
+```python
+from fastapi import FastAPI, Request, HTTPException
+import hashlib, hmac, time
+
+app = FastAPI()
+SIGNING_SECRET = "whsec_your_secret"
+
+@app.post("/webhooks/sms-dlr")
+async def dlr_handler(request: Request):
+    body = await request.body()
+    header = request.headers.get("X-Webhook-Signature", "")
+
+    if not verify_signature(body, header, SIGNING_SECRET):
+        raise HTTPException(status_code=401, detail="Invalid signature")
+
+    event = await request.json()
+    message_id = event["message_id"]
+    status = event["status"]
+
+    # Update your database
+    await db.update_message_status(message_id, status)
+
+    return {"received": True}
+```
+
+</Tab>
+<Tab value="Node.js (Express)">
+
+```js
+const express = require("express");
+const crypto = require("crypto");
+
+const app = express();
+app.use(express.raw({ type: "application/json" }));
+
+const SIGNING_SECRET = "whsec_your_secret";
+
+app.post("/webhooks/sms-dlr", (req, res) => {
+  const header = req.headers["x-webhook-signature"];
+  if (!verifySignature(req.body, header, SIGNING_SECRET)) {
+    return res.status(401).json({ error: "Invalid signature" });
+  }
+
+  const event = JSON.parse(req.body);
+  // Update your database
+  updateMessageStatus(event.message_id, event.status);
+
+  res.json({ received: true });
+});
+```
+
+</Tab>
+</Tabs>

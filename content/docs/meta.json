@@ -1,0 +1,3 @@
+{
+  "pages": ["index", "quickstart", "authentication", "sending", "delivery", "contacts", "sender-ids", "billing", "api-keys", "api-reference", "help"]
+}

@@ -1,0 +1,117 @@
+---
+title: Message Status
+description: Track the delivery status of your SMS messages.
+---
+
+## Message lifecycle
+
+Every message goes through a series of status changes from the moment it is submitted until delivery confirmation (or failure).
+
+```
+queued → submitted → sent → delivered
+                           ↘ failed (with auto-retry up to 2×)
+```
+
+## Status values
+
+| Status | Description |
+|--------|-------------|
+| `queued` | Accepted by the API and queued for dispatch |
+| `submitted` | Submitted to the carrier gateway |
+| `sent` | Accepted by the carrier (en route to handset) |
+| `delivered` | Confirmed delivered to the recipient's handset |
+| `failed` | Delivery failed. See `error_code` for reason |
+| `retrying` | Failed; system is automatically retrying |
+
+## Check status of a single message
+
+```
+GET /api/messages/{message_id}
+```
+
+```json
+{
+  "id": "msg-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "phone": "+256712345678",
+  "text": "Hello from eSMS Africa!",
+  "sender_id": "eSMSAfrica",
+  "route": "AT_UG",
+  "country": "UG",
+  "segments": 1,
+  "cost": 35.00,
+  "currency": "UGX",
+  "status": "delivered",
+  "delivered_at": "2026-05-02T12:00:05Z",
+  "timeline": [
+    {
+      "event": "accepted",
+      "status": "queued",
+      "detail": "API request received",
+      "at": "2026-05-02T12:00:00Z"
+    },
+    {
+      "event": "submitted",
+      "status": "submitted",
+      "detail": "Gateway accepted",
+      "at": "2026-05-02T12:00:01Z",
+      "metadata": { "gateway_message_id": "0005e27f-6c0c-49f1-bfa4" }
+    },
+    {
+      "event": "delivered",
+      "status": "delivered",
+      "detail": "DLR: DELIVRD",
+      "at": "2026-05-02T12:00:05Z"
+    }
+  ]
+}
+```
+
+The `timeline` array shows every event for the message in chronological order.
+
+## List messages
+
+```
+GET /api/messages?page=0&limit=20&status=delivered
+```
+
+| Query param | Description |
+|-------------|-------------|
+| `page` | 0-indexed page number (default `0`) |
+| `limit` | Results per page, 1–100 (default `20`) |
+| `status` | Filter by status: `queued`, `submitted`, `sent`, `delivered`, `failed` |
+
+## Manual retry
+
+If a message has `status: "failed"`, you can manually retry it:
+
+```
+POST /api/messages/{message_id}/retry
+```
+
+Response:
+
+```json
+{
+  "id": "msg-...",
+  "status": "retrying",
+  "retry_count": 1
+}
+```
+
+The system automatically retries failed messages up to **2 times** before marking them permanently failed. The manual retry is in addition to automatic retries.
+
+## Export to CSV
+
+Download all messages (or filtered by status) as a CSV file:
+
+```
+GET /api/messages/export?status=failed
+```
+
+Returns a CSV with columns: `message_id`, `phone`, `sender_id`, `text`, `status`, `country`, `currency`, `cost`, `segments`, `created_at`, `delivered_at`.
+
+## Real-time updates
+
+Instead of polling, use:
+- [Webhooks](/docs/delivery/webhooks) - receive DLR callbacks to your server
+- [WebSocket](/docs/delivery/websocket) - live updates in your browser/app

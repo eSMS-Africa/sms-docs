@@ -1,0 +1,89 @@
+---
+title: Coverage & Pricing
+description: Supported countries, routes, and per-segment pricing.
+---
+
+## Supported countries
+
+eSMS Africa currently supports delivery to the following countries. Pricing is per SMS segment.
+
+| Country | Route code | Currency | Price/segment | Default sender |
+|---------|-----------|----------|---------------|----------------|
+| 🇺🇬 Uganda | `AT_UG` | UGX | 35.00 | eSMSAfrica |
+| 🇰🇪 Kenya | `SAF_KE` | KES | 1.20 | eSMSAfrica |
+| 🇳🇬 Nigeria | `AT_NG` | NGN | 9.10 | eSMSAfrica |
+| 🇬🇭 Ghana | `AT_GH` | GHS | 0.08 | eSMSAfrica |
+| 🇿🇦 South Africa | `AT_ZA` | ZAR | 0.15 | eSMSAfrica |
+| 🇹🇿 Tanzania | `AT_TZ` | TZS | 90.00 | eSMSAfrica |
+| 🇷🇼 Rwanda | `AT_RW` | RWF | 35.00 | eSMSAfrica |
+
+<Callout>
+Pricing shown is in local currency per segment. Your wallet balance is automatically converted using live FX rates. See [Multi-currency billing](/docs/billing/currencies) for details.
+</Callout>
+
+## Get current pricing via API
+
+Pricing is available without authentication:
+
+```bash
+curl https://sms.esmsafrica.io/api/pricing
+```
+
+Response:
+
+```json
+[
+  {
+    "code": "AT_UG",
+    "name": "Airtel Uganda",
+    "country_code": "UG",
+    "country_name": "Uganda",
+    "currency": "UGX",
+    "price_per_segment": 35.00,
+    "sender_id_default": "eSMSAfrica",
+    "is_active": true
+  }
+]
+```
+
+## Segments explained
+
+| Encoding | 1 segment | 2+ segments |
+|----------|-----------|-------------|
+| GSM-7 (standard Latin) | ≤ 160 chars | 153 chars each |
+| UCS-2 (Unicode, emoji) | ≤ 70 chars | 67 chars each |
+
+A "Hello World" message costs 1 segment. A 200-character GSM-7 message costs 2 segments.
+
+## Route health
+
+Check delivery rates per route:
+
+```
+GET /api/routes/health
+```
+
+```json
+[
+  {
+    "code": "AT_UG",
+    "name": "Airtel Uganda",
+    "country_code": "UG",
+    "total": 1000,
+    "delivered": 950,
+    "failed": 50,
+    "delivery_rate": 95.0,
+    "status": "ok"
+  }
+]
+```
+
+| `status` | Delivery rate |
+|----------|--------------|
+| `ok` | ≥ 80% |
+| `warn` | 50–79% |
+| `down` | < 50% |
+
+## Not seeing your country?
+
+We're adding coverage regularly. Contact [support@esmsafrica.io](mailto:support@esmsafrica.io) to request coverage for a specific country.

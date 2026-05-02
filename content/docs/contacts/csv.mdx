@@ -1,0 +1,91 @@
+---
+title: CSV Format
+description: How to format your CSV files for contact list uploads.
+---
+
+## Requirements
+
+- Must be a valid comma-separated (CSV) file
+- First row must be column headers
+- Must have at least one phone column (see detection rules below)
+- UTF-8 encoding recommended
+
+## Minimum CSV
+
+```csv
+phone
++256712345678
++254700123456
++234801234567
+```
+
+## With custom fields
+
+```csv
+phone,name,balance,plan
++256712345678,Alice,50000,premium
++254700123456,Bob,1200,basic
++234801234567,Charlie,8000,premium
+```
+
+All columns except the phone column become template variables available in your message text.
+
+## Phone column detection
+
+The platform automatically identifies the phone column using these header names (case-insensitive):
+
+| Accepted header names |
+|----------------------|
+| `phone` |
+| `phone_number` |
+| `mobile` |
+| `msisdn` |
+| `to` |
+| `number` |
+
+If your file uses a different header, rename it before uploading.
+
+## Phone number format
+
+Numbers must be in **international format** - including the country code. The `+` prefix is optional.
+
+| Format | Valid? | Notes |
+|--------|--------|-------|
+| `+256712345678` | ✅ | Preferred |
+| `256712345678` | ✅ | Also accepted |
+| `0712345678` | ❌ | Missing country code - cannot route |
+| `712345678` | ❌ | Missing country code - cannot route |
+
+Numbers without a country code are silently skipped during send. Check the `unroutable` field in the pre-check response to see how many would be skipped.
+
+## Large files
+
+| Limit | Value |
+|-------|-------|
+| Maximum file size | 50 MB |
+| Maximum contacts per list | 500,000 |
+
+For very large lists, split your CSV into multiple files and create separate lists, then pass all list IDs in a single bulk send request.
+
+## Example files
+
+### Basic list
+
+```csv
+phone,name
++256701234567,Alice
++254712345678,Bob
++234802345678,Charlie
+```
+
+### Multi-country with custom fields
+
+```csv
+phone,first_name,amount,currency,expires
++256701234567,Alice,50000,UGX,2026-05-31
++254712345678,Bob,1500,KES,2026-05-31
++234802345678,Charlie,9000,NGN,2026-05-31
++27831234567,Dave,120,ZAR,2026-05-31
+```
+
+Template: `Hi {{first_name}}, your balance of {{amount}} {{currency}} expires on {{expires}}.`

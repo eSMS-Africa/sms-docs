@@ -1,0 +1,124 @@
+---
+title: Contact Lists
+description: Upload and manage contact lists for bulk SMS campaigns.
+---
+
+Contact lists store the recipients for your bulk SMS campaigns. Each list holds phone numbers and optional custom fields for personalisation.
+
+## Create a list (upload CSV)
+
+```
+POST /api/contact-lists
+Content-Type: multipart/form-data
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `file` | file | Yes | CSV file |
+| `name` | string | No | List name (defaults to filename) |
+| `tags` | string | No | Comma-separated tags, e.g. `leads,2026-q2` |
+
+```bash
+curl -X POST https://sms.esmsafrica.io/api/contact-lists \
+  -H "Authorization: Bearer esms_live_YOUR_KEY" \
+  -F "file=@contacts.csv" \
+  -F "name=Nigeria Q2 Leads" \
+  -F "tags=leads,q2"
+```
+
+Response:
+
+```json
+{
+  "id": 7,
+  "name": "Nigeria Q2 Leads",
+  "count": 1523,
+  "columns": ["phone", "name", "company", "tier"],
+  "tags": ["leads", "q2"]
+}
+```
+
+<Callout type="info">
+The phone column is detected automatically from common names: `phone`, `phone_number`, `mobile`, `msisdn`, `to`, `number`. All other columns become template variables.
+</Callout>
+
+## List all contact lists
+
+```
+GET /api/contact-lists?page=0&limit=20
+```
+
+```json
+{
+  "lists": [
+    {
+      "id": 7,
+      "name": "Nigeria Q2 Leads",
+      "count": 1523,
+      "columns": ["phone", "name", "company", "tier"],
+      "tags": ["leads", "q2"],
+      "created_at": "2026-05-02T10:00:00Z",
+      "updated_at": "2026-05-02T10:00:00Z"
+    }
+  ],
+  "total": 3
+}
+```
+
+Filter by tag: `GET /api/contact-lists?tag=leads`
+
+## Get a list
+
+```
+GET /api/contact-lists/{list_id}
+```
+
+## Browse contacts in a list
+
+```
+GET /api/contact-lists/{list_id}/contacts?page=0&limit=50
+```
+
+```json
+{
+  "contacts": [
+    {
+      "id": 1,
+      "phone": "+234801234567",
+      "name": "Alice Obi",
+      "data": { "company": "Acme Corp", "tier": "premium" }
+    }
+  ],
+  "total": 1523
+}
+```
+
+## Delete a list
+
+```
+DELETE /api/contact-lists/{list_id}
+```
+
+Deletes the list and all its contacts. This cannot be undone.
+
+## Using a list in a campaign
+
+Pass one or more list IDs in the `contact_list_ids` field of a bulk send request:
+
+```json
+{
+  "contact_list_ids": [7, 8],
+  "text": "Hi {{name}}, see our latest offer.",
+  "schedule_mode": "now"
+}
+```
+
+Contacts across all listed lists are merged and deduplicated.
+
+## Web portal
+
+You can also manage contact lists in the **Contacts** section of the portal. From there you can:
+- Upload CSVs with drag-and-drop
+- Preview contacts and their columns
+- Tag lists for organisation
+- Launch a campaign directly with **Use in campaign**
