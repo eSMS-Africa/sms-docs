@@ -14,7 +14,7 @@ DLRs come in on the same bind as regular inbound MO messages. The `esm_class` fi
 | `0x00` | Regular inbound MO message |
 | `0x04` | Delivery receipt (DLR) |
 
-Always respond with `deliver_sm_resp` immediately — a slow or missing acknowledgement will cause the gateway to retry and may result in duplicate DLRs.
+Always respond with `deliver_sm_resp` immediately - a slow or missing acknowledgement will cause the gateway to retry and may result in duplicate DLRs.
 
 ## DLR format
 
@@ -31,7 +31,7 @@ id:XXXXXXXX sub:001 dlvrd:001 submit date:YYMMDDHHMM done date:YYMMDDHHMM stat:D
 | `dlvrd` | Number of short messages delivered |
 | `submit date` | UTC timestamp of submission: `YYMMDDHHMM` |
 | `done date` | UTC timestamp of delivery or final failure: `YYMMDDHHMM` |
-| `stat` | Final status — see table below |
+| `stat` | Final status - see table below |
 | `err` | Operator error code (`000` = no error) |
 
 ### stat values
@@ -41,7 +41,7 @@ id:XXXXXXXX sub:001 dlvrd:001 submit date:YYMMDDHHMM done date:YYMMDDHHMM stat:D
 | `DELIVRD` | Delivered to handset |
 | `EXPIRED` | Message expired before delivery (TTL elapsed) |
 | `DELETED` | Deleted by operator or SMSC |
-| `UNDELIV` | Undeliverable — invalid number or unreachable |
+| `UNDELIV` | Undeliverable - invalid number or unreachable |
 | `ACCEPTD` | Accepted by operator, final status not yet known |
 | `UNKNOWN` | Status unknown |
 | `REJECTD` | Rejected by operator |

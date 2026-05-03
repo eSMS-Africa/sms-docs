@@ -5,10 +5,10 @@ description: Connect your SMPP client to eSMS Africa and send your first message
 
 ## Before you start
 
-1. **Request credentials** at [esmsafrica.io/contact](https://www.esmsafrica.io/contact) or email noc@esmsafrica.io. We provision a `system_id` and `password` — sandbox credentials are available immediately.
-2. **Check TLS support** — your SMPP client library must support TLS 1.3. Most modern libraries do; see [Troubleshooting](/docs/smpp/troubleshooting) if you hit handshake errors.
+1. **Request credentials** at [esmsafrica.io/contact](https://www.esmsafrica.io/contact) or email noc@esmsafrica.io. We provision a `system_id` and `password` - sandbox credentials are available immediately.
+2. **Check TLS support** - your SMPP client library must support TLS 1.3. Most modern libraries do; see [Troubleshooting](/docs/smpp/troubleshooting) if you hit handshake errors.
 
-## Step 1 — Install a client library
+## Step 1 - Install a client library
 
 <Tabs items={["Python", "Node.js", "Go", "Java"]}>
 <Tab value="Python">
@@ -45,7 +45,7 @@ go get github.com/fiorix/go-smpp
 </Tab>
 </Tabs>
 
-## Step 2 — Bind (connect and authenticate)
+## Step 2 - Bind (connect and authenticate)
 
 <Tabs items={["Python", "Node.js", "Go", "Java"]}>
 <Tab value="Python">
@@ -154,7 +154,7 @@ System.out.println("Bound: " + session.getSessionId());
 </Tab>
 </Tabs>
 
-## Step 3 — Send a message
+## Step 3 - Send a message
 
 <Tabs items={["Python", "Node.js", "Go", "Java"]}>
 <Tab value="Python">
@@ -247,7 +247,7 @@ System.out.println("Message ID: " + messageId);
 </Tab>
 </Tabs>
 
-## Step 4 — Receive delivery receipts
+## Step 4 - Receive delivery receipts
 
 DLRs arrive as `deliver_sm` PDUs on the same bound session. Always acknowledge them with `deliver_sm_resp`.
 
@@ -311,6 +311,6 @@ The `message_id` in the DLR matches the value returned by `submit_sm_resp`. Use 
 
 ## What's next
 
-- [Protocol Reference](/docs/smpp/reference) — all PDU types, TLVs, TON/NPI values
-- [DLR Handling](/docs/smpp/dlr) — parsing receipts and handling failures
-- [Troubleshooting](/docs/smpp/troubleshooting) — bind errors and connection issues
+- [Protocol Reference](/docs/smpp/reference) - all PDU types, TLVs, TON/NPI values
+- [DLR Handling](/docs/smpp/dlr) - parsing receipts and handling failures
+- [Troubleshooting](/docs/smpp/troubleshooting) - bind errors and connection issues

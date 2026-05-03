@@ -47,7 +47,7 @@ description: SMPP 3.4 PDU types, encoding, TON/NPI values, TLVs, and throughput 
 |:---:|---|:---:|---|
 | `0x00` | GSM-7 | 160 | Default for Latin-script messages |
 | `0x03` | Latin-1 (ISO-8859-1) | 160 | Western European characters |
-| `0x08` | UCS-2 (UTF-16 BE) | 70 | Unicode — Arabic, Amharic, CJK, emoji |
+| `0x08` | UCS-2 (UTF-16 BE) | 70 | Unicode - Arabic, Amharic, CJK, emoji |
 | `0x04` | Binary (8-bit) | 140 bytes | Raw binary payloads |
 | `0xF5` | Flash / Binary Class 0 | 140 bytes | Displayed immediately, not stored |
 
@@ -57,7 +57,7 @@ Messages exceeding the per-segment character limit are split into parts. Signal 
 
 Most libraries (smpplib, node-smpp) handle UDH splitting automatically when you call their `make_parts`/`split` helpers.
 
-Alternatively, use the `sar_msg_ref_num`, `sar_total_segments`, and `sar_segment_seqnum` optional TLVs instead of UDH headers — set `esm_class=0x00` in this case.
+Alternatively, use the `sar_msg_ref_num`, `sar_total_segments`, and `sar_segment_seqnum` optional TLVs instead of UDH headers - set `esm_class=0x00` in this case.
 
 ---
 
@@ -105,7 +105,7 @@ E.164 destination:    dest_addr_ton=1,   dest_addr_npi=1
 | `protocol_id` | byte | `0x00` |
 | `priority_flag` | byte | `0x01` (normal) |
 | `registered_delivery` | byte | `0x01` to request DLR; `0x00` for no DLR |
-| `data_coding` | byte | Encoding — see table above |
+| `data_coding` | byte | Encoding - see table above |
 | `short_message` | bytes | Message body, encoded per `data_coding` |
 
 ---
@@ -126,10 +126,10 @@ E.164 destination:    dest_addr_ton=1,   dest_addr_npi=1
 | Parameter | Default | Maximum |
 |-----------|---------|---------|
 | Submit throughput | 100 msg/s per bind | 5,000 msg/s (on request) |
-| Enquire_link interval | 30 s | — |
-| Bind timeout | 30 s | — |
+| Enquire_link interval | 30 s | - |
+| Bind timeout | 30 s | - |
 | Concurrent binds | 3 | Configurable per system_id |
-| Max message size | 254 bytes (GSM-7) | — |
+| Max message size | 254 bytes (GSM-7) | - |
 
 <Callout type="info">
 Higher throughput and concurrency limits can be negotiated. Contact noc@esmsafrica.io with your expected peak TPS.
@@ -159,9 +159,9 @@ Higher throughput and concurrency limits can be negotiated. Contact noc@esmsafri
 | `0x00000005` | ESME_RINVDSTADR | Invalid destination address |
 | `0x0000000A` | ESME_RINVSRCADR | Invalid source address (unapproved sender ID) |
 | `0x0000000B` | ESME_RINVDSTADR | Destination address not reachable on any route |
-| `0x0000000E` | ESME_RBINDFAIL | Bind failed — check system_id and password |
+| `0x0000000E` | ESME_RBINDFAIL | Bind failed - check system_id and password |
 | `0x0000000D` | ESME_RINVPASWD | Invalid password |
 | `0x00000058` | ESME_RTHROTTLED | Throughput limit exceeded |
-| `0x000000FF` | ESME_RUNKNOWNERR | Unspecified error — contact support |
+| `0x000000FF` | ESME_RUNKNOWNERR | Unspecified error - contact support |
 
 See [Troubleshooting](/docs/smpp/troubleshooting) for solutions to common errors.

@@ -25,7 +25,7 @@
     --color-fd-accent-foreground: #1f1b17;
 }
 
-/* Dark mode — proper dark palette */
+/* Dark mode - proper dark palette */
 .dark {
     --color-fd-background: hsl(222, 14%, 10%);
     --color-fd-foreground: hsl(210, 20%, 92%);
@@ -67,7 +67,7 @@ html {
 }
 
 /*
-  Nav tree items — scoped to the Radix scroll viewport.
+  Nav tree items - scoped to the Radix scroll viewport.
   padding-inline-start intentionally omitted on base rule so fumadocs depth
   indentation works. Children override it explicitly below.
 */
@@ -97,14 +97,14 @@ html {
     padding-inline-start: 32px !important;
 }
 
-/* Hover — subtle warm tint */
+/* Hover - subtle warm tint */
 #nd-sidebar [data-radix-scroll-area-viewport] a:hover,
 #nd-sidebar [data-radix-scroll-area-viewport] button:hover {
     background: var(--color-fd-accent) !important;
     color: var(--color-fd-foreground) !important;
 }
 
-/* Active item — dark ink in light mode, brand orange in dark */
+/* Active item - dark ink in light mode, brand orange in dark */
 #nd-sidebar [data-radix-scroll-area-viewport] a[data-active="true"] {
     background: #1f1b17 !important;
     color: #ffffff !important;
@@ -123,7 +123,7 @@ html {
     display: none !important;
 }
 
-/* Folder children container — left border accent line */
+/* Folder children container - left border accent line */
 #nd-sidebar [data-radix-scroll-area-viewport] .relative {
     /*padding-block: 3px !important;*/
 }

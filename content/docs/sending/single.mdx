@@ -40,7 +40,7 @@ POST /api/messages/send
 
 ## Response
 
-```json title="Response 200 — sent immediately"
+```json title="Response 200 - sent immediately"
 {
   "id": "msg-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "status": "submitted",
@@ -55,7 +55,7 @@ POST /api/messages/send
 }
 ```
 
-```json title="Response 200 — scheduled"
+```json title="Response 200 - scheduled"
 {
   "id": "msg-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "status": "scheduled",
@@ -172,7 +172,7 @@ To send a message at a future time, pass `schedule_mode: "scheduled"` and an ISO
 | ----------------- | ----------------------------------- |
 | Minimum lead time | 5 minutes from now                  |
 | Maximum lead time | 7 days                              |
-| Timezone          | Always UTC — convert before sending |
+| Timezone          | Always UTC - convert before sending |
 
 <Callout type="info">Scheduling beyond 7 days is coming soon.</Callout>
 
@@ -189,19 +189,19 @@ Scheduled messages appear in the **Logs** section of the portal with a `schedule
 | 403    | Sender ID not found, not approved, or not approved for the destination country |
 | 422    | Wallet balance too low to send this message                                    |
 
-```json title="403 — sender ID not approved"
+```json title="403 - sender ID not approved"
 {
   "detail": "Sender ID 'MyApp' not found or not approved. Check your sender IDs at /sender-ids"
 }
 ```
 
-```json title="403 — sender ID wrong country"
+```json title="403 - sender ID wrong country"
 {
   "detail": "Sender ID 'MyApp' is not approved for UG. Approved countries: KE, TZ"
 }
 ```
 
-```json title="422 — insufficient balance"
+```json title="422 - insufficient balance"
 {
   "detail": {
     "code": "insufficient_balance",

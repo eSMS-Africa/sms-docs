@@ -35,21 +35,21 @@ TLS 1.3 is **required**. Connections without TLS are closed before the SMPP hand
 
 ## Supported features
 
-- **Bind modes** — Transceiver (TRX), Transmitter (TX), Receiver (RX)
-- **Encodings** — GSM-7 (`0x00`), Latin-1 (`0x03`), UCS-2 (`0x08`), Binary (`0x04`)
-- **Long messages** — Concatenation via UDH (`esm_class=0x40`) or SAR TLVs
-- **Delivery receipts** — `registered_delivery=1` on submit_sm; DLR arrives as deliver_sm
-- **Throughput** — 100 msg/s default, configurable up to 5,000 msg/s per bind
-- **Keepalive** — enquire_link / enquire_link_resp
-- **Auto-reconnect** — Client is expected to reconnect on bind loss
-- **Multi-bind** — Multiple concurrent binds per system_id supported
+- **Bind modes** - Transceiver (TRX), Transmitter (TX), Receiver (RX)
+- **Encodings** - GSM-7 (`0x00`), Latin-1 (`0x03`), UCS-2 (`0x08`), Binary (`0x04`)
+- **Long messages** - Concatenation via UDH (`esm_class=0x40`) or SAR TLVs
+- **Delivery receipts** - `registered_delivery=1` on submit_sm; DLR arrives as deliver_sm
+- **Throughput** - 100 msg/s default, configurable up to 5,000 msg/s per bind
+- **Keepalive** - enquire_link / enquire_link_resp
+- **Auto-reconnect** - Client is expected to reconnect on bind loss
+- **Multi-bind** - Multiple concurrent binds per system_id supported
 
 ## Getting credentials
 
 SMPP credentials (`system_id` + `password`) are provisioned per customer.
 
-**Sandbox** — routes to a test SMSC, produces synthetic DLRs, messages never reach real handsets.  
-**Production** — routes live traffic through operator agreements.
+**Sandbox** - routes to a test SMSC, produces synthetic DLRs, messages never reach real handsets.  
+**Production** - routes live traffic through operator agreements.
 
 To request access:
 
@@ -60,7 +60,7 @@ We typically provision credentials within one business day and will help you val
 
 ## Next steps
 
-- [SMPP Quickstart](/docs/smpp/quickstart) — connect and send your first message
-- [Protocol Reference](/docs/smpp/reference) — PDUs, encodings, TON/NPI, TLVs
-- [DLR Handling](/docs/smpp/dlr) — receive and parse delivery receipts
-- [Troubleshooting](/docs/smpp/troubleshooting) — common bind errors and fixes
+- [SMPP Quickstart](/docs/smpp/quickstart) - connect and send your first message
+- [Protocol Reference](/docs/smpp/reference) - PDUs, encodings, TON/NPI, TLVs
+- [DLR Handling](/docs/smpp/dlr) - receive and parse delivery receipts
+- [Troubleshooting](/docs/smpp/troubleshooting) - common bind errors and fixes

@@ -85,7 +85,7 @@ If a message has `status: "failed"`, you can manually retry it:
 POST /api/messages/:message_id/retry
 ```
 
-The retry is dispatched as a **new send** — the response contains a fresh message ID. The original message's `retry_count` is incremented.
+The retry is dispatched as a **new send** - the response contains a fresh message ID. The original message's `retry_count` is incremented.
 
 ```json title="Response 200"
 {
