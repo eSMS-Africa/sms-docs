@@ -15,22 +15,29 @@ POST /api/messages/send
 {
   "to": "+254712345678",
   "text": "Your OTP is 482910. Valid for 5 minutes.",
-  "sender_id": "MyApp",
-  "route": "ESMS_KE"
+  "sender_id": "MyApp"
 }
 ```
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `to` | string | Yes | Recipient phone in E.164 format (`+254...`) |
-| `text` | string | Yes | Message content. Up to 160 chars = 1 segment |
-| `sender_id` | string | No | Approved sender ID. Defaults to route's default sender |
-| `route` | string | No | Route code (e.g. `ESMS_UG`). Auto-detected from phone number if omitted |
-| `schedule_mode` | string | No | `"now"` (default) or `"scheduled"` |
-| `scheduled_at` | string | If scheduled | ISO 8601 UTC datetime, at least 5 minutes in the future |
+| Field           | Type   | Required     | Description                                                             |
+| --------------- | ------ | ------------ | ----------------------------------------------------------------------- |
+| `to`            | string | Yes          | Recipient phone in E.164 format (`+254...`)                             |
+| `text`          | string | Yes          | Message content. Up to 160 chars = 1 segment                            |
+| `sender_id`     | string | No           | Approved sender ID. Defaults to route's default sender                  |
+| `route`         | string | No           | Route code (e.g. `ESMS_UG`). Auto-detected from phone number if omitted |
+| `schedule_mode` | string | No           | `"now"` (default) or `"scheduled"`                                      |
+| `scheduled_at`  | string | If scheduled | ISO 8601 UTC datetime, at least 5 minutes in the future                 |
 
 <Callout type="info">
-**E.164 format** means: `+` followed by country code, then subscriber number. No spaces, brackets, or dashes. Example: `+256712345678`.
+  **E.164 format** means: `+` followed by country code, then subscriber number.
+  No spaces, brackets, or dashes. Example: `+256712345678`.
+</Callout>
+
+<!-- callout for formate for scheduled at -->
+
+<Callout type="info">
+  **ISO 8601 format** means: `YYYY-MM-DDThh:mm:ssZ`. Timezone should always be
+  UTC. Example: `2026-06-01T07:00:00Z`.
 </Callout>
 
 ## Response
@@ -42,10 +49,10 @@ POST /api/messages/send
   "segments": 1,
   "cost": 1.2022,
   "cost_currency": "KES",
-  "route_cost": 35.00,
+  "route_cost": 35.0,
   "route_currency": "UGX",
   "route": "ESMS_UG",
-  "balance_after": 1965.00,
+  "balance_after": 1965.0,
   "scheduled_at": null
 }
 ```
@@ -57,26 +64,26 @@ POST /api/messages/send
   "segments": 1,
   "cost": 1.2022,
   "cost_currency": "KES",
-  "route_cost": 35.00,
+  "route_cost": 35.0,
   "route_currency": "UGX",
   "route": "ESMS_UG",
-  "balance_after": 1965.00,
+  "balance_after": 1965.0,
   "scheduled_at": "2026-06-01T07:00:00+00:00"
 }
 ```
 
-| Field | Description |
-|-------|-------------|
-| `id` | Unique message ID. Use this to [check delivery status](/docs/delivery/status) |
-| `status` | `submitted`, `scheduled`, or `failed` |
-| `segments` | Number of SMS segments consumed (160 chars = 1, longer messages split automatically) |
-| `cost` | Amount deducted from your wallet, in your wallet currency |
-| `cost_currency` | Your wallet's 3-letter ISO currency code |
-| `route_cost` | Cost in the route's native billing currency |
-| `route_currency` | The route's native currency (e.g. `UGX` for Uganda routes) |
-| `route` | Route code used for delivery |
-| `balance_after` | Your wallet balance after the charge |
-| `scheduled_at` | ISO 8601 datetime when the message will be dispatched, or `null` for immediate sends |
+| Field            | Description                                                                          |
+| ---------------- | ------------------------------------------------------------------------------------ |
+| `id`             | Unique message ID. Use this to [check delivery status](/docs/delivery/status)        |
+| `status`         | `submitted`, `scheduled`, or `failed`                                                |
+| `segments`       | Number of SMS segments consumed (160 chars = 1, longer messages split automatically) |
+| `cost`           | Amount deducted from your wallet, in your wallet currency                            |
+| `cost_currency`  | Your wallet's 3-letter ISO currency code                                             |
+| `route_cost`     | Cost in the route's native billing currency                                          |
+| `route_currency` | The route's native currency (e.g. `UGX` for Uganda routes)                           |
+| `route`          | Route code used for delivery                                                         |
+| `balance_after`  | Your wallet balance after the charge                                                 |
+| `scheduled_at`   | ISO 8601 datetime when the message will be dispatched, or `null` for immediate sends |
 
 ## Examples
 
@@ -120,7 +127,7 @@ print(f"Message ID: {msg['id']}, Status: {msg['status']}")
 const resp = await fetch("https://sms.esmsafrica.io/api/messages/send", {
   method: "POST",
   headers: {
-    "Authorization": "Bearer esms_live_YOUR_KEY",
+    Authorization: "Bearer esms_live_YOUR_KEY",
     "Content-Type": "application/json",
   },
   body: JSON.stringify({
@@ -138,10 +145,10 @@ console.log(`Message ID: ${msg.id}, Status: ${msg.status}`);
 
 ## SMS segments
 
-| Encoding | Single segment | Multi-segment |
-|----------|---------------|---------------|
-| GSM-7 (standard ASCII + Latin) | ≤ 160 chars | 153 chars per segment |
-| UCS-2 (Unicode, Arabic, CJK, emoji) | ≤ 70 chars | 67 chars per segment |
+| Encoding                            | Single segment | Multi-segment         |
+| ----------------------------------- | -------------- | --------------------- |
+| GSM-7 (standard ASCII + Latin)      | ≤ 160 chars    | 153 chars per segment |
+| UCS-2 (Unicode, Arabic, CJK, emoji) | ≤ 70 chars     | 67 chars per segment  |
 
 Messages are automatically split into multiple segments when they exceed the single-segment limit. Each segment is billed separately.
 
@@ -163,28 +170,26 @@ To send a message at a future time, pass `schedule_mode: "scheduled"` and an ISO
 }
 ```
 
-| Constraint | Value |
-|-----------|-------|
-| Minimum lead time | 5 minutes from now |
-| Maximum lead time | 7 days |
-| Timezone | Always UTC — convert before sending |
+| Constraint        | Value                               |
+| ----------------- | ----------------------------------- |
+| Minimum lead time | 5 minutes from now                  |
+| Maximum lead time | 7 days                              |
+| Timezone          | Always UTC — convert before sending |
 
-<Callout type="info">
-Scheduling beyond 7 days is coming soon.
-</Callout>
+<Callout type="info">Scheduling beyond 7 days is coming soon.</Callout>
 
 Scheduled messages appear in the **Logs** section of the portal with a `scheduled` status badge.
 
 ## Error responses
 
-| Status | Meaning |
-|--------|---------|
-| 400 | Phone number could not be parsed or is missing a country code |
-| 400 | No active route for the destination country |
-| 400 | `scheduled_at` is missing or less than 5 minutes in the future |
-| 401 | Missing or invalid API key |
-| 403 | Sender ID not found, not approved, or not approved for the destination country |
-| 422 | Wallet balance too low to send this message |
+| Status | Meaning                                                                        |
+| ------ | ------------------------------------------------------------------------------ |
+| 400    | Phone number could not be parsed or is missing a country code                  |
+| 400    | No active route for the destination country                                    |
+| 400    | `scheduled_at` is missing or less than 5 minutes in the future                 |
+| 401    | Missing or invalid API key                                                     |
+| 403    | Sender ID not found, not approved, or not approved for the destination country |
+| 422    | Wallet balance too low to send this message                                    |
 
 ```json title="403 — sender ID not approved"
 {
@@ -203,8 +208,8 @@ Scheduled messages appear in the **Logs** section of the portal with a `schedule
   "detail": {
     "code": "insufficient_balance",
     "message": "Balance USD 0.50 < estimated cost USD 1.20",
-    "balance": 0.50,
-    "cost": 1.20
+    "balance": 0.5,
+    "cost": 1.2
   }
 }
 ```
