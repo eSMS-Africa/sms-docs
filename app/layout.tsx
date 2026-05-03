@@ -1,6 +1,7 @@
 import { RootProvider } from 'fumadocs-ui/provider/next';
 import type { Metadata } from 'next';
 import './global.css';
+import { Tracker } from './tracker';
 
 export const metadata: Metadata = {
   title: { default: 'eSMS Africa Docs', template: '%s - eSMS Africa' },
@@ -24,6 +25,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
           theme={{ defaultTheme: 'light', enableSystem: true }}
           search={{ options: { type: 'static' } }}
         >
+          <Tracker />
           {children}
         </RootProvider>
       </body>
