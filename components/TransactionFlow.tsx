@@ -1,3 +1,4 @@
+import { Fragment } from 'react';
 import type { ReactNode } from 'react';
 
 const MONO = "'Google Sans Mono', ui-monospace, monospace";
@@ -116,9 +117,9 @@ export function FXConversion({ steps, footer, note }: FXConversionProps) {
       <div style={{ padding: '28px 32px' }}>
         <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 16, justifyContent: 'center' }}>
           {steps.map((step, i) => (
-            <>
+            <Fragment key={i}>
               {/* Step box */}
-              <div key={`step-${i}`} style={{ textAlign: 'center' }}>
+              <div style={{ textAlign: 'center' }}>
                 {step.label && (
                   <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: '0.12em', textTransform: 'uppercase', color: '#a39a8e', marginBottom: 6 }}>
                     {step.label}
@@ -135,11 +136,11 @@ export function FXConversion({ steps, footer, note }: FXConversionProps) {
 
               {/* Arrow between steps */}
               {i < steps.length - 1 && (
-                <div key={`arrow-${i}`} style={{ display: 'flex', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center' }}>
                   <ArrowRight />
                 </div>
               )}
-            </>
+            </Fragment>
           ))}
         </div>
 
