@@ -53,32 +53,36 @@ html {
   font-size: 13px;
 }
 
-/* Section labels (SidebarSeparator renders as <p>) */
-#nd-sidebar [data-radix-scroll-area-viewport] p {
+/* Section separator labels */
+#nd-sidebar [data-radix-scroll-area-viewport] [data-type='separator'] {
   font-family: var(--font-mono) !important;
   font-size: 10px !important;
-  font-weight: 600 !important;
+  font-weight: 700 !important;
   text-transform: uppercase !important;
-  letter-spacing: 0.09em !important;
+  letter-spacing: 0.1em !important;
   color: var(--color-fd-muted-foreground) !important;
-  padding-inline: 14px !important;
-  margin-top: 20px !important;
-  margin-bottom: 2px !important;
+  padding-inline: 12px !important;
+  margin-top: 24px !important;
+  margin-bottom: 4px !important;
 }
 
 /*
-  Nav tree items only — scoped to the Radix scroll viewport so the
-  search button and footer icon links are unaffected.
+  Nav tree items — scoped to the Radix scroll viewport.
+  IMPORTANT: do NOT use `padding` shorthand here — fumadocs sets
+  `paddingInlineStart` as an inline style to create depth-based indentation.
+  Shorthand with !important would override inline styles and break the indent.
 */
 #nd-sidebar [data-radix-scroll-area-viewport] a,
 #nd-sidebar [data-radix-scroll-area-viewport] button {
-  border-radius: 6px !important;
+  border-radius: 7px !important;
   font-size: 13px !important;
   font-weight: 500 !important;
-  padding: 7px 10px !important;
-  margin-inline: 8px !important;
-  width: calc(100% - 16px) !important;
-  gap: 10px !important;
+  padding-block: 7px !important;
+  padding-inline-end: 10px !important;
+  /* padding-inline-start intentionally omitted — fumadocs controls depth indent */
+  margin-inline: 6px !important;
+  width: calc(100% - 12px) !important;
+  gap: 9px !important;
   color: var(--color-fd-muted-foreground) !important;
   transition: background 0.12s ease, color 0.12s ease !important;
 }
@@ -101,7 +105,7 @@ html {
   color: #ffffff !important;
 }
 
-/* Active item icon + active indicator bar */
+/* Active item icon */
 #nd-sidebar [data-radix-scroll-area-viewport] a[data-active='true'] svg {
   color: #ffffff !important;
 }
@@ -109,9 +113,18 @@ html {
   display: none !important;
 }
 
-/* Remove tree-connector line from folder content */
+/* Folder children container — left border accent line */
+#nd-sidebar [data-radix-scroll-area-viewport] .relative {
+  padding-block: 2px !important;
+}
 #nd-sidebar [data-radix-scroll-area-viewport] .relative::before {
-  display: none !important;
+  background: var(--color-fd-border) !important;
+  opacity: 0.7 !important;
+}
+
+/* Extra top spacing between top-level sections */
+#nd-sidebar [data-radix-scroll-area-viewport] > div > div {
+  gap: 2px;
 }
 
 /* ── Inline code ─────────────────────────────────────────────────── */

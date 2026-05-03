@@ -46,6 +46,10 @@ const defs: Record<string, string[]> = {
     'M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3',
     'M12 17h.01',
   ],
+  Terminal: [
+    'M4 17l6-6-6-6',
+    'M12 19h8',
+  ],
 };
 
 export function iconHandler(name: string | undefined): ReactNode | undefined {
