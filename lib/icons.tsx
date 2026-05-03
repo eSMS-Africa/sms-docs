@@ -32,9 +32,13 @@ export function iconHandler(name: string | undefined): ReactNode | undefined {
   // The marketing SVGs have viewBox="0 0 24 24" but no explicit size.
   const sized = svg.replace('<svg ', '<svg width="16" height="16" style="flex-shrink:0;display:block" ');
 
+  // Generate a random key to force React to treat each icon as a new element, preventing reuse and ensuring correct rendering.
+  const genereateRandomKey = () => Math.random().toString(36).substr(2, 9);
+
   return (
     <span
       aria-hidden="true"
+      key={genereateRandomKey()}
       style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 16, height: 16, flexShrink: 0 }}
       dangerouslySetInnerHTML={{ __html: sized }}
     />
