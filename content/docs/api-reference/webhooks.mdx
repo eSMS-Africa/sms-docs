@@ -11,7 +11,7 @@ Get your webhook configuration.
 
 ### Response `200`
 
-```json
+```json title="Response 200"
 {
   "dlr_url": "https://yourapp.com/webhooks/sms-dlr",
   "mo_url": null,
@@ -32,7 +32,7 @@ Update your webhook configuration.
 
 All fields are optional. Omitted fields are unchanged.
 
-```json
+```json title="Request body"
 {
   "dlr_url": "https://yourapp.com/webhooks/sms-dlr",
   "is_active": true
@@ -47,7 +47,9 @@ All fields are optional. Omitted fields are unchanged.
 
 ### Response `200`
 
-Same shape as `GET /api/webhooks`.
+```json title="Response 200"
+{ "status": "updated" }
+```
 
 ---
 
@@ -61,36 +63,38 @@ No request body required.
 
 ### Response `200`
 
-```json
+```json title="Response 200"
 {
   "signing_secret": "whsec_newxyz789..."
 }
 ```
 
-Update your webhook handler with the new secret **before** this endpoint returns, as the old secret stops working immediately.
+Update your webhook handler with the new secret before the old one is removed from your handler. The old secret stops working immediately after rotation.
 
 ---
 
 ## DLR webhook payload
 
-The platform sends `POST` requests to your `dlr_url` when message status reaches a terminal state.
+The platform sends `POST` requests to your `dlr_url` when a message reaches a terminal state.
 
-```json
+```json title="POST to your dlr_url"
 {
-  "type": "message_status",
-  "message_id": "msg-a1b2c3d4",
+  "event": "message.delivered",
+  "message_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "status": "delivered",
   "phone": "+256712345678",
-  "delivered_at": "2026-05-02T12:00:05Z",
-  "dlr_status": "DELIVRD",
+  "sender_id": "eSMSAfrica",
+  "segments": 1,
+  "cost": 35.00,
   "error_code": null,
-  "error_message": null,
-  "timestamp": "2026-05-02T12:00:06Z"
+  "retry_count": 0,
+  "delivered_at": "2026-05-02T12:00:05Z",
+  "failed_at": null
 }
 ```
 
-**Signature header:** `X-Webhook-Signature: t=<unix_timestamp>,v1=<hmac_sha256>`
+**Signature header:** `X-Webhook-Signature: sha256=<hmac_sha256_hex>`
 
-See [Webhooks - signature verification](/docs/delivery/webhooks#signature-verification) for how to verify.
+See [Webhooks - signature verification](/docs/delivery/webhooks#signature-verification) for verification examples.
 
-Your endpoint must return `HTTP 200` within 10 seconds. Failed deliveries are retried 3 times with exponential backoff.
+Your endpoint must return `HTTP 200` within 15 seconds. Failed deliveries are retried up to 5 times with exponential backoff (10s → 30s → 90s → 4.5min → 13min).

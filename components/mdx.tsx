@@ -3,7 +3,7 @@ import { Steps, Step } from 'fumadocs-ui/components/steps';
 import { Tab } from 'fumadocs-ui/components/tabs';
 import { Callout } from 'fumadocs-ui/components/callout';
 import { Tabs } from './code-tabs';
-import { TransactionFlow, FXConversion, DiagramNote } from './TransactionFlow';
+import { TransactionFlow, FXConversion, DiagramNote, MessageLifecycle } from './TransactionFlow';
 import type { MDXComponents } from 'mdx/types';
 
 export function getMDXComponents(components?: MDXComponents) {
@@ -17,6 +17,7 @@ export function getMDXComponents(components?: MDXComponents) {
     TransactionFlow,
     FXConversion,
     DiagramNote,
+    MessageLifecycle,
     ...components,
   } satisfies MDXComponents;
 }

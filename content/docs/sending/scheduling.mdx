@@ -1,14 +1,51 @@
 ---
 title: Scheduling & Drip
-description: Schedule messages for a future time or send at a controlled drip rate.
+description: Schedule single messages or bulk campaigns for a future time, or send at a controlled drip rate.
 ---
 
+## Schedule a single message
 
-## Scheduled delivery
+Pass `schedule_mode: "scheduled"` and `scheduled_at` to any single-send request. The message is created and balance reserved immediately; it will be dispatched automatically when the scheduled time arrives.
+
+```json title="POST /api/messages/send"
+{
+  "to": "+256712345678",
+  "text": "Your appointment is tomorrow at 10am. Reply 1 to confirm.",
+  "sender_id": "ClinicApp",
+  "schedule_mode": "scheduled",
+  "scheduled_at": "2026-06-01T07:00:00Z"
+}
+```
+
+The response will have `"status": "scheduled"` and include the `scheduled_at` timestamp:
+
+```json
+{
+  "id": "msg-a1b2c3d4",
+  "status": "scheduled",
+  "route": "ESMS_UG",
+  "scheduled_at": "2026-06-01T07:00:00+00:00",
+  ...
+}
+```
+
+| Constraint | Value |
+|-----------|-------|
+| Minimum lead time | 5 minutes from now |
+| Maximum lead time | 7 days |
+| Timezone | Always UTC — convert before sending |
+
+Scheduled single messages appear in the **Logs** portal with a `scheduled` status badge.
+
+<Callout type="info">
+Scheduling beyond 7 days is coming soon.
+</Callout>
+
+## Scheduled bulk delivery
 
 Schedule a bulk send to go out at a specific time. Useful for time-sensitive campaigns, reminders, or when you want to send during business hours in a specific timezone.
 
-```json
+```json title="POST /api/messages/send-bulk"
 {
   "contact_list_ids": [1],
   "text": "Your appointment is tomorrow at 10am. Reply 1 to confirm.",
@@ -22,9 +59,9 @@ Schedule a bulk send to go out at a specific time. Useful for time-sensitive cam
 
 | Constraint | Value |
 |-----------|-------|
-| Minimum lead time | 10 minutes from now |
-| Maximum lead time | 90 days |
-| Timezone | Always UTC - convert before sending |
+| Minimum lead time | 5 minutes from now |
+| Maximum lead time | 7 days |
+| Timezone | Always UTC — convert before sending |
 
 <Callout type="info">
 If your target audience is in East Africa (UTC+3), 9:00 AM local time = `06:00:00Z`. Plan accordingly.
@@ -32,9 +69,9 @@ If your target audience is in East Africa (UTC+3), 9:00 AM local time = `06:00:0
 
 ### Status
 
-The batch response will show `"status": "scheduled"`. Scheduled messages appear in the **Logs** section of the portal with a countdown.
+The batch response will show `"status": "scheduled"`. Scheduled messages appear in the **Logs** section of the portal.
 
-You cannot currently cancel a scheduled batch via API. To cancel, contact support or delete the scheduled record in the portal before it dispatches.
+You cannot currently cancel a scheduled batch via API. To cancel, delete the scheduled record in the portal before it dispatches.
 
 ## Drip delivery
 

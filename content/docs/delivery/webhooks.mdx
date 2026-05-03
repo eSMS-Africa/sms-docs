@@ -3,7 +3,7 @@ title: Webhooks (DLR)
 description: Receive real-time delivery report callbacks when message status changes.
 ---
 
-Webhooks deliver real-time delivery report (DLR) notifications to your server when a message reaches a terminal state - delivered or failed.
+Webhooks deliver real-time delivery report (DLR) notifications to your server when a message reaches a terminal state — delivered or failed.
 
 ## Configure your webhook
 
@@ -25,29 +25,33 @@ The platform will send a `POST` request to your `dlr_url` for every delivery sta
 
 ```json title="POST to your dlr_url"
 {
-  "type": "message_status",
-  "message_id": "msg-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "event": "message.delivered",
+  "message_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "status": "delivered",
   "phone": "+256712345678",
-  "delivered_at": "2026-05-02T12:00:05Z",
-  "dlr_status": "DELIVRD",
+  "sender_id": "eSMSAfrica",
+  "segments": 1,
+  "cost": 35.00,
   "error_code": null,
-  "error_message": null,
-  "timestamp": "2026-05-02T12:00:06Z"
+  "retry_count": 0,
+  "delivered_at": "2026-05-02T12:00:05Z",
+  "failed_at": null
 }
 ```
 
 | Field | Description |
 |-------|-------------|
-| `type` | Always `message_status` |
+| `event` | `message.delivered` or `message.failed` |
 | `message_id` | The UUID returned when you sent the message |
 | `status` | `delivered` or `failed` |
 | `phone` | Recipient phone in E.164 format |
-| `delivered_at` | UTC timestamp of delivery (null if failed) |
-| `dlr_status` | Raw carrier DLR code (e.g. `DELIVRD`, `UNDELIV`) |
+| `sender_id` | Sender ID used for this message |
+| `segments` | Number of SMS segments sent |
+| `cost` | Cost charged for this message |
 | `error_code` | Carrier error code, if failed |
-| `error_message` | Human-readable failure reason |
-| `timestamp` | UTC timestamp the webhook was sent |
+| `retry_count` | Number of retry attempts made |
+| `delivered_at` | UTC timestamp of delivery (null if failed) |
+| `failed_at` | UTC timestamp of final failure (null if delivered) |
 
 ## Signature verification
 
@@ -56,12 +60,10 @@ Every webhook request is signed with HMAC-SHA256. Verify signatures to ensure re
 ### Signature header
 
 ```http title="Request header"
-X-Webhook-Signature: t=1746184806,v1=abc123def456...
+X-Webhook-Signature: sha256=abc123def456...
 ```
 
-The header contains:
-- `t` - Unix timestamp of the request
-- `v1` - HMAC-SHA256 signature
+The header contains `sha256=` followed by the HMAC-SHA256 hex digest of the raw request body, signed with your webhook signing secret.
 
 ### Verification
 
@@ -71,20 +73,10 @@ The header contains:
 ```python title="verify_webhook.py"
 import hashlib
 import hmac
-import time
 
 def verify_signature(payload: bytes, header: str, secret: str) -> bool:
-    parts = dict(p.split("=", 1) for p in header.split(","))
-    timestamp = parts.get("t", "")
-    signature = parts.get("v1", "")
-
-    # Reject requests older than 5 minutes
-    if abs(time.time() - int(timestamp)) > 300:
-        return False
-
-    signed_payload = f"{timestamp}.".encode() + payload
-    expected = hmac.new(secret.encode(), signed_payload, hashlib.sha256).hexdigest()
-    return hmac.compare_digest(expected, signature)
+    expected = "sha256=" + hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, header)
 
 # In your webhook handler:
 # verify_signature(request.body, request.headers["X-Webhook-Signature"], SIGNING_SECRET)
@@ -97,20 +89,12 @@ def verify_signature(payload: bytes, header: str, secret: str) -> bool:
 const crypto = require("crypto");
 
 function verifySignature(payload, header, secret) {
-  const parts = Object.fromEntries(header.split(",").map(p => p.split("=")));
-  const timestamp = parts.t;
-  const signature = parts.v1;
-
-  // Reject requests older than 5 minutes
-  if (Math.abs(Date.now() / 1000 - Number(timestamp)) > 300) return false;
-
-  const signedPayload = `${timestamp}.${payload}`;
-  const expected = crypto
+  const expected = "sha256=" + crypto
     .createHmac("sha256", secret)
-    .update(signedPayload)
+    .update(payload)
     .digest("hex");
 
-  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(signature));
+  return crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(header));
 }
 ```
 
@@ -119,21 +103,8 @@ function verifySignature(payload, header, secret) {
 
 ```php title="verify_webhook.php"
 function verifySignature(string $payload, string $header, string $secret): bool {
-    $parts = [];
-    foreach (explode(',', $header) as $part) {
-        [$k, $v] = explode('=', $part, 2);
-        $parts[$k] = $v;
-    }
-
-    $timestamp = $parts['t'] ?? '';
-    $signature = $parts['v1'] ?? '';
-
-    if (abs(time() - intval($timestamp)) > 300) return false;
-
-    $signed = $timestamp . '.' . $payload;
-    $expected = hash_hmac('sha256', $signed, $secret);
-
-    return hash_equals($expected, $signature);
+    $expected = 'sha256=' . hash_hmac('sha256', $payload, $secret);
+    return hash_equals($expected, $header);
 }
 ```
 
@@ -167,15 +138,17 @@ After rotating, update your signing secret in all webhook handlers before the ol
 
 ## Responding to webhooks
 
-Your endpoint must return `HTTP 200` within **10 seconds**. If it times out or returns a non-2xx status, the platform will retry with exponential backoff.
+Your endpoint must return `HTTP 200` within **15 seconds**. If it times out or returns a non-2xx status, the platform will retry with exponential backoff.
 
 | Attempt | Delay |
 |---------|-------|
-| 1st retry | 30 seconds |
-| 2nd retry | 5 minutes |
-| 3rd retry | 30 minutes |
+| 1st retry | 10 seconds |
+| 2nd retry | 30 seconds |
+| 3rd retry | 90 seconds |
+| 4th retry | 4.5 minutes |
+| 5th retry | ~13 minutes |
 
-After 3 failed attempts, the webhook delivery is abandoned for that event.
+After all retries are exhausted, the webhook delivery is abandoned for that event.
 
 ## Example webhook handler
 
@@ -184,7 +157,7 @@ After 3 failed attempts, the webhook delivery is abandoned for that event.
 
 ```python title="webhook_handler.py"
 from fastapi import FastAPI, Request, HTTPException
-import hashlib, hmac, time
+import hashlib, hmac
 
 app = FastAPI()
 SIGNING_SECRET = "whsec_your_secret"
@@ -194,7 +167,8 @@ async def dlr_handler(request: Request):
     body = await request.body()
     header = request.headers.get("X-Webhook-Signature", "")
 
-    if not verify_signature(body, header, SIGNING_SECRET):
+    expected = "sha256=" + hmac.new(SIGNING_SECRET.encode(), body, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, header):
         raise HTTPException(status_code=401, detail="Invalid signature")
 
     event = await request.json()
@@ -221,7 +195,12 @@ const SIGNING_SECRET = "whsec_your_secret";
 
 app.post("/webhooks/sms-dlr", (req, res) => {
   const header = req.headers["x-webhook-signature"];
-  if (!verifySignature(req.body, header, SIGNING_SECRET)) {
+  const expected = "sha256=" + crypto
+    .createHmac("sha256", SIGNING_SECRET)
+    .update(req.body)
+    .digest("hex");
+
+  if (!crypto.timingSafeEqual(Buffer.from(expected), Buffer.from(header))) {
     return res.status(401).json({ error: "Invalid signature" });
   }
 

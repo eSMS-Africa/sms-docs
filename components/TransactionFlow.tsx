@@ -169,3 +169,69 @@ export function DiagramNote({ children }: { children: ReactNode }) {
     </div>
   );
 }
+
+// ─── MessageLifecycle ─────────────────────────────────────────────────────────
+
+export function MessageLifecycle() {
+  return (
+    <div style={{ fontFamily: SANS, background: '#faf7f4', border: '1px solid #ece6de', borderRadius: 14, margin: '24px 0', overflow: 'hidden' }}>
+      <div style={{ padding: '28px 32px 26px' }}>
+        <svg
+          width="100%"
+          viewBox="0 0 534 118"
+          style={{ display: 'block', overflow: 'visible' }}
+          aria-label="Message lifecycle: queued → submitted → sent → delivered, or sent → failed with auto-retry"
+        >
+          <defs>
+            <marker id="mlf-a" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="#c4bbb2" />
+            </marker>
+            <marker id="mlf-a-red" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+              <path d="M0,0 L0,6 L8,3 z" fill="#fca5a5" />
+            </marker>
+          </defs>
+
+          {/* queued */}
+          <rect x="0" y="6" width="76" height="28" rx="6" fill="#ffffff" stroke="#e5dfd8" strokeWidth="1.5" />
+          <text x="38" y="24" textAnchor="middle" fontFamily="'Google Sans Mono',monospace" fontSize="12" fontWeight="500" fill="#7a7269">queued</text>
+
+          {/* queued → submitted */}
+          <line x1="76" y1="20" x2="114" y2="20" stroke="#ddd5c9" strokeWidth="1.5" markerEnd="url(#mlf-a)" />
+
+          {/* submitted */}
+          <rect x="114" y="6" width="96" height="28" rx="6" fill="#fffbeb" stroke="#fcd34d" strokeWidth="1.5" strokeOpacity="0.55" />
+          <text x="162" y="24" textAnchor="middle" fontFamily="'Google Sans Mono',monospace" fontSize="12" fontWeight="500" fill="#92600a">submitted</text>
+
+          {/* submitted → sent */}
+          <line x1="210" y1="20" x2="252" y2="20" stroke="#ddd5c9" strokeWidth="1.5" markerEnd="url(#mlf-a)" />
+
+          {/* sent */}
+          <rect x="252" y="6" width="56" height="28" rx="6" fill="#eff6ff" stroke="#93c5fd" strokeWidth="1.5" strokeOpacity="0.65" />
+          <text x="280" y="24" textAnchor="middle" fontFamily="'Google Sans Mono',monospace" fontSize="12" fontWeight="500" fill="#1d4ed8">sent</text>
+
+          {/* sent → delivered */}
+          <line x1="308" y1="20" x2="352" y2="20" stroke="#ddd5c9" strokeWidth="1.5" markerEnd="url(#mlf-a)" />
+
+          {/* delivered */}
+          <rect x="352" y="6" width="96" height="28" rx="6" fill="#f0fdf4" stroke="#86efac" strokeWidth="1.5" strokeOpacity="0.8" />
+          <text x="400" y="24" textAnchor="middle" fontFamily="'Google Sans Mono',monospace" fontSize="12" fontWeight="600" fill="#15803d">delivered</text>
+
+          {/* Vertical branch: sent ↓ failed */}
+          <line x1="280" y1="34" x2="280" y2="80" stroke="#fca5a5" strokeWidth="1.5" markerEnd="url(#mlf-a-red)" />
+
+          {/* failed */}
+          <rect x="242" y="80" width="76" height="28" rx="6" fill="#fef2f2" stroke="#fca5a5" strokeWidth="1.5" />
+          <text x="280" y="98" textAnchor="middle" fontFamily="'Google Sans Mono',monospace" fontSize="12" fontWeight="500" fill="#b91c1c">failed</text>
+
+          {/* retry note */}
+          <text x="330" y="98" fontFamily="'Google Sans Mono',monospace" fontSize="11" fill="#a39a8e">↺  auto-retry up to 2×</text>
+        </svg>
+      </div>
+
+      <div style={{ borderTop: '1px solid #ece6de', padding: '10px 32px', background: '#ffffff', display: 'flex', justifyContent: 'space-between' }}>
+        <span style={{ fontSize: 10, fontFamily: MONO, color: '#b0a89e', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Message lifecycle</span>
+        <span style={{ fontSize: 10, fontFamily: MONO, color: '#b0a89e', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Terminal states: delivered · failed</span>
+      </div>
+    </div>
+  );
+}

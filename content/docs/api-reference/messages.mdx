@@ -25,7 +25,9 @@ Send a single SMS message.
 | `to` | string | ✅ | Recipient phone in E.164 format |
 | `text` | string | ✅ | Message content |
 | `sender_id` | string | - | Approved sender ID. Defaults to route default |
-| `route` | string | - | Route code. Auto-detected if omitted |
+| `route` | string | - | Route code e.g. `ESMS_UG`. Auto-detected if omitted |
+| `schedule_mode` | string | - | `"now"` (default) or `"scheduled"` |
+| `scheduled_at` | string | If scheduled | ISO 8601 UTC datetime, at least 5 minutes in the future |
 
 ### Response `200`
 
@@ -39,19 +41,22 @@ Send a single SMS message.
   "route_cost": 35.00,
   "route_currency": "UGX",
   "route": "ESMS_UG",
-  "balance_after": 1965.00
+  "balance_after": 1965.00,
+  "scheduled_at": null
 }
 ```
 
-`cost` / `cost_currency` is the wallet deduction. `route_cost` / `route_currency` is the carrier's native price.
+When `schedule_mode` is `"scheduled"`, status will be `"scheduled"` and `scheduled_at` will contain the dispatch time. `cost` / `cost_currency` is the wallet deduction. `route_cost` / `route_currency` is the carrier's native price.
 
 ### Errors
 
-| Code | Detail |
-|------|--------|
-| 400 | `"Invalid phone number: ..."` - phone cannot be parsed or is missing country code |
-| 400 | `"No route found for ..."` - no active route for this country |
-| 422 | `"Insufficient balance. Required: ... available: ..."` - wallet balance too low |
+| Status | Detail |
+|--------|--------|
+| 400 | Phone cannot be parsed or is missing country code |
+| 400 | No active route for this country |
+| 400 | `scheduled_at` missing, less than 5 minutes in the future, or more than 7 days out |
+| 403 | Sender ID not found, not approved, or not approved for this country |
+| 422 | Wallet balance too low |
 
 ---
 
@@ -157,7 +162,7 @@ List messages with pagination and optional status filter.
 |-------|---------|-------------|
 | `page` | `0` | 0-indexed page |
 | `limit` | `20` | 1–100 |
-| `status` | - | Filter: `queued`, `submitted`, `sent`, `delivered`, `failed` |
+| `status` | - | Filter: `queued`, `submitted`, `scheduled`, `dripping`, `delivered`, `failed` |
 
 ### Response `200`
 

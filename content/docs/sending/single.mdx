@@ -26,6 +26,8 @@ POST /api/messages/send
 | `text` | string | Yes | Message content. Up to 160 chars = 1 segment |
 | `sender_id` | string | No | Approved sender ID. Defaults to route's default sender |
 | `route` | string | No | Route code (e.g. `ESMS_UG`). Auto-detected from phone number if omitted |
+| `schedule_mode` | string | No | `"now"` (default) or `"scheduled"` |
+| `scheduled_at` | string | If scheduled | ISO 8601 UTC datetime, at least 5 minutes in the future |
 
 <Callout type="info">
 **E.164 format** means: `+` followed by country code, then subscriber number. No spaces, brackets, or dashes. Example: `+256712345678`.
@@ -33,7 +35,7 @@ POST /api/messages/send
 
 ## Response
 
-```json title="Response 200"
+```json title="Response 200 — sent immediately"
 {
   "id": "msg-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "status": "submitted",
@@ -43,14 +45,30 @@ POST /api/messages/send
   "route_cost": 35.00,
   "route_currency": "UGX",
   "route": "ESMS_UG",
-  "balance_after": 1965.00
+  "balance_after": 1965.00,
+  "scheduled_at": null
+}
+```
+
+```json title="Response 200 — scheduled"
+{
+  "id": "msg-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "status": "scheduled",
+  "segments": 1,
+  "cost": 1.2022,
+  "cost_currency": "KES",
+  "route_cost": 35.00,
+  "route_currency": "UGX",
+  "route": "ESMS_UG",
+  "balance_after": 1965.00,
+  "scheduled_at": "2026-06-01T07:00:00+00:00"
 }
 ```
 
 | Field | Description |
 |-------|-------------|
 | `id` | Unique message ID. Use this to [check delivery status](/docs/delivery/status) |
-| `status` | Initial status: `submitted` or `failed` |
+| `status` | `submitted`, `scheduled`, or `failed` |
 | `segments` | Number of SMS segments consumed (160 chars = 1, longer messages split automatically) |
 | `cost` | Amount deducted from your wallet, in your wallet currency |
 | `cost_currency` | Your wallet's 3-letter ISO currency code |
@@ -58,6 +76,7 @@ POST /api/messages/send
 | `route_currency` | The route's native currency (e.g. `UGX` for Uganda routes) |
 | `route` | Route code used for delivery |
 | `balance_after` | Your wallet balance after the charge |
+| `scheduled_at` | ISO 8601 datetime when the message will be dispatched, or `null` for immediate sends |
 
 ## Examples
 
@@ -130,17 +149,62 @@ Messages are automatically split into multiple segments when they exceed the sin
 
 If you don't specify a `route`, the platform detects the destination country from the phone number and selects the appropriate route automatically. Check [Coverage & Pricing](/docs/help/coverage) for supported countries.
 
+## Scheduling a single message
+
+To send a message at a future time, pass `schedule_mode: "scheduled"` and an ISO 8601 `scheduled_at` timestamp in UTC. The message will be created immediately (balance reserved) and dispatched automatically at the scheduled time.
+
+```json title="Schedule for a future time"
+{
+  "to": "+256712345678",
+  "text": "Your appointment is tomorrow at 10am. Reply 1 to confirm.",
+  "sender_id": "ClinicApp",
+  "schedule_mode": "scheduled",
+  "scheduled_at": "2026-06-01T07:00:00Z"
+}
+```
+
+| Constraint | Value |
+|-----------|-------|
+| Minimum lead time | 5 minutes from now |
+| Maximum lead time | 7 days |
+| Timezone | Always UTC — convert before sending |
+
+<Callout type="info">
+Scheduling beyond 7 days is coming soon.
+</Callout>
+
+Scheduled messages appear in the **Logs** section of the portal with a `scheduled` status badge.
+
 ## Error responses
 
-| Status | Code | Meaning |
-|--------|------|---------|
-| 400 | `invalid_phone` | Phone number could not be parsed or is invalid |
-| 400 | `no_route` | No active route for the destination country |
-| 422 | `insufficient_balance` | Wallet balance too low to send this message |
-| 401 | - | Missing or invalid API key |
+| Status | Meaning |
+|--------|---------|
+| 400 | Phone number could not be parsed or is missing a country code |
+| 400 | No active route for the destination country |
+| 400 | `scheduled_at` is missing or less than 5 minutes in the future |
+| 401 | Missing or invalid API key |
+| 403 | Sender ID not found, not approved, or not approved for the destination country |
+| 422 | Wallet balance too low to send this message |
 
-```json title="Error response"
+```json title="403 — sender ID not approved"
 {
-  "detail": "Insufficient balance. Required: 35 UGX, available: 10 UGX"
+  "detail": "Sender ID 'MyApp' not found or not approved. Check your sender IDs at /sender-ids"
+}
+```
+
+```json title="403 — sender ID wrong country"
+{
+  "detail": "Sender ID 'MyApp' is not approved for UG. Approved countries: KE, TZ"
+}
+```
+
+```json title="422 — insufficient balance"
+{
+  "detail": {
+    "code": "insufficient_balance",
+    "message": "Balance USD 0.50 < estimated cost USD 1.20",
+    "balance": 0.50,
+    "cost": 1.20
+  }
 }
 ```
