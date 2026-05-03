@@ -1,0 +1,193 @@
+---
+title: Delivery Receipts (DLR)
+description: How SMPP delivery receipts work, the receipt format, and how to parse and handle them.
+---
+
+When you submit a message with `registered_delivery=1`, the gateway delivers a receipt to your bound session as a `deliver_sm` PDU once the message reaches a terminal state.
+
+## How DLRs arrive
+
+DLRs come in on the same bind as regular inbound MO messages. The `esm_class` field distinguishes them:
+
+| `esm_class` | Type |
+|:---:|---|
+| `0x00` | Regular inbound MO message |
+| `0x04` | Delivery receipt (DLR) |
+
+Always respond with `deliver_sm_resp` immediately — a slow or missing acknowledgement will cause the gateway to retry and may result in duplicate DLRs.
+
+## DLR format
+
+The `short_message` field of a DLR deliver_sm follows the GSM standard receipt format:
+
+```
+id:XXXXXXXX sub:001 dlvrd:001 submit date:YYMMDDHHMM done date:YYMMDDHHMM stat:DELIVRD err:000
+```
+
+| Field | Description |
+|-------|-------------|
+| `id` | The `message_id` from your `submit_sm_resp` |
+| `sub` | Number of short messages originally submitted (always `001`) |
+| `dlvrd` | Number of short messages delivered |
+| `submit date` | UTC timestamp of submission: `YYMMDDHHMM` |
+| `done date` | UTC timestamp of delivery or final failure: `YYMMDDHHMM` |
+| `stat` | Final status — see table below |
+| `err` | Operator error code (`000` = no error) |
+
+### stat values
+
+| `stat` | Meaning |
+|--------|---------|
+| `DELIVRD` | Delivered to handset |
+| `EXPIRED` | Message expired before delivery (TTL elapsed) |
+| `DELETED` | Deleted by operator or SMSC |
+| `UNDELIV` | Undeliverable — invalid number or unreachable |
+| `ACCEPTD` | Accepted by operator, final status not yet known |
+| `UNKNOWN` | Status unknown |
+| `REJECTD` | Rejected by operator |
+
+## Parsing example
+
+<Tabs items={["Python", "Node.js", "Go"]}>
+<Tab value="Python">
+
+```python title="parse_dlr.py"
+import re
+
+DLR_PATTERN = re.compile(
+    r'id:(?P<id>\S+)\s+'
+    r'sub:(?P<sub>\d+)\s+'
+    r'dlvrd:(?P<dlvrd>\d+)\s+'
+    r'submit date:(?P<submit_date>\d+)\s+'
+    r'done date:(?P<done_date>\d+)\s+'
+    r'stat:(?P<stat>\w+)\s+'
+    r'err:(?P<err>\d+)',
+    re.IGNORECASE,
+)
+
+def parse_dlr(short_message: str | bytes) -> dict | None:
+    if isinstance(short_message, bytes):
+        short_message = short_message.decode('latin-1')
+    m = DLR_PATTERN.search(short_message)
+    if not m:
+        return None
+    return m.groupdict()
+
+# Usage in your deliver_sm handler:
+def message_received(pdu):
+    dlr = parse_dlr(pdu.short_message)
+    if dlr:
+        print(f"Message {dlr['id']} → {dlr['stat']} (err: {dlr['err']})")
+        # Update your database:
+        # db.update_message(dlr['id'], status=dlr['stat'], error=dlr['err'])
+    # Always acknowledge
+    # (smpplib does this automatically in listen())
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js title="parseDlr.js"
+const DLR_RE = /id:(\S+)\s+sub:(\d+)\s+dlvrd:(\d+)\s+submit date:(\d+)\s+done date:(\d+)\s+stat:(\w+)\s+err:(\d+)/i;
+
+function parseDlr(shortMessage) {
+  const m = DLR_RE.exec(shortMessage);
+  if (!m) return null;
+  return {
+    id:          m[1],
+    sub:         m[2],
+    dlvrd:       m[3],
+    submit_date: m[4],
+    done_date:   m[5],
+    stat:        m[6],
+    err:         m[7],
+  };
+}
+
+session.on('deliver_sm', (pdu) => {
+  const dlr = parseDlr(pdu.short_message);
+  if (dlr) {
+    console.log(`Message ${dlr.id} → ${dlr.stat} (err: ${dlr.err})`);
+    // db.updateMessage(dlr.id, { status: dlr.stat, error: dlr.err });
+  }
+  // Acknowledge
+  session.send(pdu.response());
+});
+```
+
+</Tab>
+<Tab value="Go">
+
+```go title="parse_dlr.go"
+import (
+    "fmt"
+    "regexp"
+)
+
+var dlrRe = regexp.MustCompile(
+    `id:(\S+)\s+sub:(\d+)\s+dlvrd:(\d+)\s+` +
+    `submit date:(\d+)\s+done date:(\d+)\s+` +
+    `stat:(\w+)\s+err:(\d+)`,
+)
+
+type DLR struct {
+    ID, Sub, Dlvrd, SubmitDate, DoneDate, Stat, Err string
+}
+
+func ParseDLR(msg string) (*DLR, bool) {
+    m := dlrRe.FindStringSubmatch(msg)
+    if m == nil {
+        return nil, false
+    }
+    return &DLR{
+        ID: m[1], Sub: m[2], Dlvrd: m[3],
+        SubmitDate: m[4], DoneDate: m[5],
+        Stat: m[6], Err: m[7],
+    }, true
+}
+
+func main() {
+    msg := "id:8A2F91C4 sub:001 dlvrd:001 submit date:2605030812 done date:2605030812 stat:DELIVRD err:000"
+    if dlr, ok := ParseDLR(msg); ok {
+        fmt.Printf("Message %s → %s\n", dlr.ID, dlr.Stat)
+    }
+}
+```
+
+</Tab>
+</Tabs>
+
+## Correlating DLRs to submitted messages
+
+```
+submit_sm response  →  message_id: "8A2F91C4"
+deliver_sm DLR      →  id:8A2F91C4 stat:DELIVRD
+```
+
+Store the `message_id` from `submit_sm_resp` in your database against your internal record. When a DLR arrives, look up by `id` to find the matching record and update its status.
+
+<Callout type="warn">
+The `message_id` is a string and may contain hex characters, alphanumeric characters, or digits depending on the carrier. Store it as a string, not a number.
+</Callout>
+
+## DLR timing
+
+DLR latency depends on the operator and network. Typical ranges:
+
+| Scenario | Expected DLR time |
+|----------|------------------|
+| Delivered immediately | 1–15 seconds |
+| Operator retry needed | 1–5 minutes |
+| Message expires | Up to validity period (default 24 h) |
+| No DLR received | Treat as unknown after 24 hours |
+
+Implement a job that marks messages as `unknown` if no DLR arrives within your chosen timeout.
+
+## Handling MO (inbound) messages
+
+Inbound messages from handsets also arrive as `deliver_sm`. Distinguish them from DLRs by checking:
+
+- `esm_class == 0x04` → DLR
+- `esm_class == 0x00` → MO message
+
+MO messages have `source_addr` set to the originating MSISDN and `destination_addr` set to your long code or short code.

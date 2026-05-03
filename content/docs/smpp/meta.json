@@ -1,0 +1,5 @@
+{
+  "title": "SMPP Gateway",
+  "icon": "Terminal",
+  "pages": ["index", "quickstart", "reference", "dlr", "troubleshooting"]
+}

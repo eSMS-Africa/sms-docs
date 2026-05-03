@@ -1,0 +1,167 @@
+---
+title: Protocol Reference
+description: SMPP 3.4 PDU types, encoding, TON/NPI values, TLVs, and throughput limits.
+---
+
+## PDU types
+
+### Bind PDUs
+
+| PDU | Direction | Purpose |
+|-----|-----------|---------|
+| `bind_transceiver` | Client → Server | Open a TRX session (send + receive) |
+| `bind_transmitter` | Client → Server | Open a TX-only session |
+| `bind_receiver` | Client → Server | Open an RX-only session |
+| `bind_*_resp` | Server → Client | Bind acknowledgement |
+| `unbind` | Either | Request graceful disconnect |
+| `unbind_resp` | Either | Unbind acknowledgement |
+
+### Message PDUs
+
+| PDU | Direction | Purpose |
+|-----|-----------|---------|
+| `submit_sm` | Client → Server | Submit a message for delivery |
+| `submit_sm_resp` | Server → Client | Submission acknowledgement + `message_id` |
+| `deliver_sm` | Server → Client | Inbound MO message or DLR callback |
+| `deliver_sm_resp` | Client → Server | **Must** acknowledge every deliver_sm |
+| `query_sm` | Client → Server | Query current status of a submitted message |
+| `query_sm_resp` | Server → Client | Status + final date |
+
+### Session PDUs
+
+| PDU | Direction | Purpose |
+|-----|-----------|---------|
+| `enquire_link` | Either | Keepalive probe |
+| `enquire_link_resp` | Either | Keepalive acknowledgement |
+| `generic_nack` | Either | Reject a PDU with an unrecognised command_id |
+
+<Callout type="info">
+`submit_multi` is not currently supported. For bulk delivery, parallelise `submit_sm` across multiple binds.
+</Callout>
+
+---
+
+## Encoding (data_coding) {#encoding}
+
+| `data_coding` | Encoding | Max chars / segment | Notes |
+|:---:|---|:---:|---|
+| `0x00` | GSM-7 | 160 | Default for Latin-script messages |
+| `0x03` | Latin-1 (ISO-8859-1) | 160 | Western European characters |
+| `0x08` | UCS-2 (UTF-16 BE) | 70 | Unicode — Arabic, Amharic, CJK, emoji |
+| `0x04` | Binary (8-bit) | 140 bytes | Raw binary payloads |
+| `0xF5` | Flash / Binary Class 0 | 140 bytes | Displayed immediately, not stored |
+
+### Long messages (UDH)
+
+Messages exceeding the per-segment character limit are split into parts. Signal multi-part structure by setting `esm_class=0x40` (UDH indicator) and prepending a User Data Header to each part.
+
+Most libraries (smpplib, node-smpp) handle UDH splitting automatically when you call their `make_parts`/`split` helpers.
+
+Alternatively, use the `sar_msg_ref_num`, `sar_total_segments`, and `sar_segment_seqnum` optional TLVs instead of UDH headers — set `esm_class=0x00` in this case.
+
+---
+
+## TON and NPI values
+
+**Type of Number (TON)**
+
+| Value | Constant | Use for |
+|:---:|---|---|
+| `0` | UNKNOWN | When TON is not known |
+| `1` | INTERNATIONAL | E.164 numbers (`+254...`) |
+| `2` | NATIONAL | National format numbers |
+| `5` | ALPHANUMERIC | Text sender IDs (`eSMSCo`) |
+| `6` | ABBREVIATED | Short codes |
+
+**Numbering Plan Indicator (NPI)**
+
+| Value | Constant | Use for |
+|:---:|---|---|
+| `0` | UNKNOWN | Use with alphanumeric source addresses |
+| `1` | ISDN (E.163/E.164) | Standard phone numbers |
+
+**Recommended values:**
+
+```
+Alphanumeric sender:  source_addr_ton=5, source_addr_npi=0
+E.164 sender:         source_addr_ton=1, source_addr_npi=1
+E.164 destination:    dest_addr_ton=1,   dest_addr_npi=1
+```
+
+---
+
+## submit_sm fields reference
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `service_type` | string | Leave empty (`""`) |
+| `source_addr_ton` | byte | See TON table above |
+| `source_addr_npi` | byte | See NPI table above |
+| `source_addr` | string | Your approved sender ID |
+| `dest_addr_ton` | byte | `1` (international) |
+| `dest_addr_npi` | byte | `1` (ISDN) |
+| `destination_addr` | string | E.164 format: `+254712345678` |
+| `esm_class` | byte | `0x00` default; `0x40` if using UDH |
+| `protocol_id` | byte | `0x00` |
+| `priority_flag` | byte | `0x01` (normal) |
+| `registered_delivery` | byte | `0x01` to request DLR; `0x00` for no DLR |
+| `data_coding` | byte | Encoding — see table above |
+| `short_message` | bytes | Message body, encoded per `data_coding` |
+
+---
+
+## registered_delivery flags
+
+| Byte | Meaning |
+|:---:|---|
+| `0x00` | No delivery receipt |
+| `0x01` | Receipt on final delivery (delivered or failed) |
+| `0x02` | Receipt on delivery failure only |
+| `0x03` | Receipt on successful delivery only |
+
+---
+
+## Throughput and connection limits
+
+| Parameter | Default | Maximum |
+|-----------|---------|---------|
+| Submit throughput | 100 msg/s per bind | 5,000 msg/s (on request) |
+| Enquire_link interval | 30 s | — |
+| Bind timeout | 30 s | — |
+| Concurrent binds | 3 | Configurable per system_id |
+| Max message size | 254 bytes (GSM-7) | — |
+
+<Callout type="info">
+Higher throughput and concurrency limits can be negotiated. Contact noc@esmsafrica.io with your expected peak TPS.
+</Callout>
+
+---
+
+## Optional TLVs supported
+
+| TLV Tag | Name | Purpose |
+|:---:|---|---|
+| `0x020C` | `sar_msg_ref_num` | Reference number for SAR concatenation |
+| `0x020E` | `sar_total_segments` | Total number of SAR segments |
+| `0x020F` | `sar_segment_seqnum` | This segment's sequence number |
+| `0x0204` | `user_message_reference` | Client-assigned message reference |
+| `0x0005` | `dest_addr_subunit` | Flash message delivery (Class 0) |
+
+---
+
+## Error codes (command_status)
+
+| Hex | Name | Cause |
+|:---:|---|---|
+| `0x00000000` | ESME_ROK | Success |
+| `0x00000001` | ESME_RINVMSGLEN | Message too long |
+| `0x00000002` | ESME_RINVCMDLEN | PDU length field incorrect |
+| `0x00000005` | ESME_RINVDSTADR | Invalid destination address |
+| `0x0000000A` | ESME_RINVSRCADR | Invalid source address (unapproved sender ID) |
+| `0x0000000B` | ESME_RINVDSTADR | Destination address not reachable on any route |
+| `0x0000000E` | ESME_RBINDFAIL | Bind failed — check system_id and password |
+| `0x0000000D` | ESME_RINVPASWD | Invalid password |
+| `0x00000058` | ESME_RTHROTTLED | Throughput limit exceeded |
+| `0x000000FF` | ESME_RUNKNOWNERR | Unspecified error — contact support |
+
+See [Troubleshooting](/docs/smpp/troubleshooting) for solutions to common errors.

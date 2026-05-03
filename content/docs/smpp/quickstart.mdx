@@ -1,0 +1,316 @@
+---
+title: SMPP Quickstart
+description: Connect your SMPP client to eSMS Africa and send your first message in minutes.
+---
+
+## Before you start
+
+1. **Request credentials** at [esmsafrica.io/contact](https://www.esmsafrica.io/contact) or email noc@esmsafrica.io. We provision a `system_id` and `password` — sandbox credentials are available immediately.
+2. **Check TLS support** — your SMPP client library must support TLS 1.3. Most modern libraries do; see [Troubleshooting](/docs/smpp/troubleshooting) if you hit handshake errors.
+
+## Step 1 — Install a client library
+
+<Tabs items={["Python", "Node.js", "Go", "Java"]}>
+<Tab value="Python">
+
+```bash title="Terminal"
+pip install smpplib
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```bash title="Terminal"
+npm install node-smpp
+```
+
+</Tab>
+<Tab value="Go">
+
+```bash title="Terminal"
+go get github.com/fiorix/go-smpp
+```
+
+</Tab>
+<Tab value="Java">
+
+```xml title="pom.xml"
+<dependency>
+  <groupId>org.jsmpp</groupId>
+  <artifactId>jsmpp</artifactId>
+  <version>3.0.0</version>
+</dependency>
+```
+
+</Tab>
+</Tabs>
+
+## Step 2 — Bind (connect and authenticate)
+
+<Tabs items={["Python", "Node.js", "Go", "Java"]}>
+<Tab value="Python">
+
+```python title="smpp_client.py"
+import ssl
+import smpplib.client
+import smpplib.consts
+
+# TLS 1.3 context
+ctx = ssl.create_default_context()
+
+client = smpplib.client.Client(
+    'smpp.esmsafrica.io', 2775,
+    allow_unknown_opt_params=True,
+    timeout=30,
+)
+client.connect(ssl=ctx)
+
+client.bind_transceiver(
+    system_id='YOUR_SYSTEM_ID',
+    password='YOUR_PASSWORD',
+)
+print('Bound successfully')
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js title="smpp_client.js"
+const smpp = require('node-smpp');
+
+const session = new smpp.Session({
+  host: 'smpp.esmsafrica.io',
+  port: 2775,
+  tls: true,                        // TLS 1.3 required
+  auto_enquire_link_period: 30000,  // keepalive every 30 s
+});
+
+session.bind_transceiver({
+  system_id: 'YOUR_SYSTEM_ID',
+  password: 'YOUR_PASSWORD',
+}, (pdu) => {
+  if (pdu.command_status === 0) {
+    console.log('Bound successfully');
+  }
+});
+```
+
+</Tab>
+<Tab value="Go">
+
+```go title="smpp_client.go"
+package main
+
+import (
+    "crypto/tls"
+    "fmt"
+    "github.com/fiorix/go-smpp/smpp"
+    "github.com/fiorix/go-smpp/smpp/pdu/pdufield"
+)
+
+func main() {
+    tx := &smpp.Transceiver{
+        Addr:   "smpp.esmsafrica.io:2775",
+        User:   "YOUR_SYSTEM_ID",
+        Passwd: "YOUR_PASSWORD",
+        TLS:    &tls.Config{},  // TLS 1.3 default
+    }
+
+    conn := tx.Bind()
+    for c := range conn {
+        if c.Error() != nil {
+            panic(c.Error())
+        }
+        fmt.Println("Bound successfully")
+    }
+}
+```
+
+</Tab>
+<Tab value="Java">
+
+```java title="SmppClient.java"
+import org.jsmpp.session.*;
+import org.jsmpp.bean.*;
+import org.jsmpp.util.InvalidDeliveryReceiptException;
+
+SMPPSession session = new SMPPSession();
+session.connectAndBind(
+    "smpp.esmsafrica.io",
+    2775,
+    new BindParameter(
+        BindType.BIND_TRX,
+        "YOUR_SYSTEM_ID",
+        "YOUR_PASSWORD",
+        "cp",
+        TypeOfNumber.UNKNOWN,
+        NumberingPlanIndicator.UNKNOWN,
+        null
+    )
+);
+System.out.println("Bound: " + session.getSessionId());
+```
+
+</Tab>
+</Tabs>
+
+## Step 3 — Send a message
+
+<Tabs items={["Python", "Node.js", "Go", "Java"]}>
+<Tab value="Python">
+
+```python title="send_sms.py"
+import smpplib.gsm
+
+# GSM-7 encoding with UDH support for long messages
+parts, enc_flag, msg_type = smpplib.gsm.make_parts('Your OTP is 482910. Valid for 5 minutes.')
+
+for part in parts:
+    resp = client.send_message(
+        source_addr_ton=smpplib.consts.SMPP_TON_ALNUM,   # alphanumeric sender
+        source_addr_npi=smpplib.consts.SMPP_NPI_UNK,
+        source_addr='eSMSCo',
+        dest_addr_ton=smpplib.consts.SMPP_TON_INTL,      # international E.164
+        dest_addr_npi=smpplib.consts.SMPP_NPI_ISDN,
+        destination_addr='+254712345678',
+        data_coding=enc_flag,
+        esm_class=msg_type,
+        short_message=part,
+        registered_delivery=1,   # request DLR
+    )
+    print(f'Queued: {resp.message_id}')
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js title="send_sms.js"
+session.submit_sm({
+  source_addr_ton: 5,    // alphanumeric
+  source_addr_npi: 0,
+  source_addr: 'eSMSCo',
+  dest_addr_ton: 1,      // international
+  dest_addr_npi: 1,
+  destination_addr: '+254712345678',
+  data_coding: 0,        // GSM-7
+  short_message: 'Your OTP is 482910',
+  registered_delivery: 1,
+}, (pdu) => {
+  if (pdu.command_status === 0) {
+    console.log('Message ID:', pdu.message_id);
+  }
+});
+```
+
+</Tab>
+<Tab value="Go">
+
+```go title="send_sms.go"
+sm, err := tx.Submit(&smpp.ShortMessage{
+    Src:      "eSMSCo",
+    Dst:      "+254712345678",
+    Text:     pdufield.CStr("Your OTP is 482910"),
+    Register: smpp.FinalDeliveryReceipt,
+})
+if err != nil {
+    panic(err)
+}
+fmt.Println("Message ID:", sm.Resp().Fields[pdufield.MessageID])
+```
+
+</Tab>
+<Tab value="Java">
+
+```java title="SendMessage.java"
+String messageId = session.submitShortMessage(
+    "CMT",                               // service_type
+    TypeOfNumber.ALPHANUMERIC,           // source TON
+    NumberingPlanIndicator.UNKNOWN,      // source NPI
+    "eSMSCo",                           // source address
+    TypeOfNumber.INTERNATIONAL,          // dest TON
+    NumberingPlanIndicator.ISDN,         // dest NPI
+    "+254712345678",                     // destination
+    new ESMClass(),
+    (byte) 0,                            // protocol_id
+    (byte) 1,                            // priority_flag
+    null,                                // schedule_delivery_time
+    null,                                // validity_period
+    new RegisteredDelivery(SMSCDeliveryReceipt.SUCCESS_FAILURE),
+    (byte) 0,                            // replace_if_present_flag
+    new GeneralDataCoding(Alphabet.ALPHA_DEFAULT),
+    (byte) 0,                            // sm_default_msg_id
+    "Your OTP is 482910".getBytes()
+);
+System.out.println("Message ID: " + messageId);
+```
+
+</Tab>
+</Tabs>
+
+## Step 4 — Receive delivery receipts
+
+DLRs arrive as `deliver_sm` PDUs on the same bound session. Always acknowledge them with `deliver_sm_resp`.
+
+<Tabs items={["Python", "Node.js", "Go"]}>
+<Tab value="Python">
+
+```python title="dlr_handler.py"
+def message_received(pdu):
+    msg = pdu.short_message
+    if isinstance(msg, bytes):
+        msg = msg.decode('latin-1')
+    print(f'DLR: {msg}')
+    # Parse: "id:MSGID sub:001 dlvrd:001 submit date:... stat:DELIVRD err:000"
+
+client.set_message_received_handler(message_received)
+
+# Block and handle PDUs
+client.listen()
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js title="dlr_handler.js"
+session.on('deliver_sm', (pdu) => {
+  console.log('DLR:', pdu.short_message);
+  // Always acknowledge
+  session.send(pdu.response());
+});
+```
+
+</Tab>
+<Tab value="Go">
+
+```go title="dlr_handler.go"
+func dlrHandler(p pdu.Body) {
+    f := p.Fields()
+    msg := f[pdufield.ShortMessage]
+    fmt.Println("DLR:", msg.String())
+}
+```
+
+</Tab>
+</Tabs>
+
+<Callout type="info">
+The `message_id` in the DLR matches the value returned by `submit_sm_resp`. Use it to correlate receipts to your outbound messages.
+</Callout>
+
+## Connection parameters reference
+
+| Parameter | Value | Notes |
+|-----------|-------|-------|
+| `system_type` | `""` (empty) | Leave blank unless instructed otherwise |
+| `source_addr_ton` | `5` (alphanumeric) or `1` (international) | Match your sender ID type |
+| `source_addr_npi` | `0` (unknown) | Use `0` for alphanumeric senders |
+| `dest_addr_ton` | `1` (international) | Always use E.164 format |
+| `dest_addr_npi` | `1` (ISDN) | |
+| `registered_delivery` | `1` | Set to receive DLRs |
+| `data_coding` | `0` GSM-7, `8` UCS-2 | See [encodings](/docs/smpp/reference#encoding) |
+
+## What's next
+
+- [Protocol Reference](/docs/smpp/reference) — all PDU types, TLVs, TON/NPI values
+- [DLR Handling](/docs/smpp/dlr) — parsing receipts and handling failures
+- [Troubleshooting](/docs/smpp/troubleshooting) — bind errors and connection issues
