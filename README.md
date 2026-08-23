@@ -1,3 +1,5 @@
+> ⚠️ **Deprecated - archived.** This repository has been superseded by **[esms-docs](../esms-docs)** (the current docs at docs.esmsafrica.io) and is no longer maintained. It is kept for historical reference only.
+
 # Starlight Starter Kit: Basics
 
 [![Built with Starlight](https://astro.badg.es/v2/built-with-starlight/tiny.svg)](https://starlight.astro.build)
