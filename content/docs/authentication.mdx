@@ -38,7 +38,9 @@ Authorization: Bearer esms_live_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6
 <Tab value="cURL">
 
 ```bash title="Terminal"
-curl https://sms.esmsafrica.io/api/messages \
+# GET lists your messages - a quick way to check your key works.
+# (To SEND, POST to /api/messages/send - see below.)
+curl -X GET https://sms.esmsafrica.io/api/messages \
   -H "Authorization: Bearer esms_live_YOUR_KEY"
 ```
 
@@ -76,6 +78,14 @@ async function esmsRequest(path, options = {}) {
 
 </Tab>
 </Tabs>
+
+<Callout type="warn">
+  The example above is a **GET** to `/api/messages` (it lists messages). To **send**
+  an SMS you must **POST** to **`/api/messages/send`** - see the
+  [Quickstart](/docs/quickstart). Posting to `/api/messages` returns
+  `405 Method Not Allowed`. Test (`esms_test_`) keys are accepted the same way and
+  simulate delivery (no real SMS, no charge).
+</Callout>
 
 ### API key scopes
 
