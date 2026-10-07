@@ -1,0 +1,316 @@
+---
+title: Two-Way SMS
+description: Send and receive SMS on a short code - dedicated or shared (keyword), standard rated or toll free, across 54 African countries.
+---
+
+Build a solution that provides two-way communication service using short codes.
+eSMS Two-Way SMS gives you a **short code** (a five digit number) that people can
+both text and receive messages from. Every message your users send to the code is
+delivered to your backend in real time over a signed webhook, and you reply from
+the same short code with one API call.
+
+<Callout>
+Two-Way SMS is available to [eSMS SMS app](https://sms.esmsafrica.io) users in
+all 54 African countries. Request a service at
+[sms.esmsafrica.io/two-way](https://sms.esmsafrica.io/two-way) - nothing is charged
+until your request is approved.
+</Callout>
+
+## Dedicated or shared
+
+A short code can either be **dedicated** (it solely belongs to you) or **shared**
+(used by multiple businesses and differentiated by a **keyword**).
+
+| | Dedicated short code | Shared short code (keyword) |
+|---|---|---|
+| Who uses the code | Only you | Several businesses on the same number |
+| How messages reach you | Every message to the code is yours | Messages whose **first word** matches your keyword, e.g. `JOIN` |
+| What users text | Anything, e.g. `Hello` to `32811` | Your keyword first, e.g. `JOIN promo` to `32811` |
+| Best for | Brands with high volume or many campaigns | Pilots, single campaigns, lower cost |
+| Monthly fee | The country's monthly fee | The country's shared keyword fee (often the same or lower) |
+
+Keyword matching on a shared code is case-insensitive and uses the first word of
+the message (letters and digits only), so `join`, `JOIN` and `Join!` all reach the
+`JOIN` keyword. Check that a keyword is free before you request it with
+[`GET /api/two-way/keywords/check`](/docs/api-reference/two-way#check-keyword-availability).
+
+## Standard rated or toll free
+
+| | Standard rated short code | Toll free short code |
+|---|---|---|
+| End user pays | The normal rate to send a message to the code | Nothing - free for the end user |
+| Receiving a reply | Free for the end user | Free for the end user |
+| You (the owner) pay | Incoming and outgoing SMS at your two-way rates | All SMS sent **and** received on the code |
+| Best for | Most services | Surveys, hotlines and campaigns where cost would stop people replying |
+
+- **Standard rated short code** - an SMS is charged at the normal rate to send a
+  message, but is free to receive a message for both senders and receivers.
+- **Toll free short code** - the end user interacts with this short code free of
+  charge. The owner of this code bears the cost of all SMS that are sent and
+  received on this code.
+
+Toll free is offered per country where networks support it - the `toll_free_available`
+flag on the [pricing endpoint](/docs/api-reference/two-way#get-pricing) tells
+you which.
+
+## Use cases
+
+**Conduct a survey** - Collect feedback, run polls and gather data. Ask a question
+by SMS and let respondents reply with a number or a word; your backend tallies the
+answers as they arrive.
+
+**SMS marketing** - Run opt-in campaigns, competitions and promotions. Print
+"Text JOIN to 32811" on a poster, a pack or a radio spot and grow a list of
+customers who asked to hear from you.
+
+**Customer support** - Use keywords and short codes so users can ask questions and
+you reply with relevant help - balances, order status, opening hours or a hand-off
+to an agent.
+
+## Integration flow
+
+```
+ User's phone           eSMS Africa                    Your backend
+ ------------           -----------                    ------------
+      |   1. SMS "JOIN promo"  |                              |
+      |   to short code 32811  |                              |
+      | ---------------------> |                              |
+      |                        |  2. Match the code (and the  |
+      |                        |     keyword on a shared code)|
+      |                        |     to your service          |
+      |                        |                              |
+      |                        |  3. POST message.inbound     |
+      |                        |     (signed webhook)         |
+      |                        | ---------------------------> |
+      |                        |                              |  4. Your logic:
+      |                        |                              |     save, look up,
+      |                        |  5. POST /services/{id}/reply|     decide a reply
+      |                        | <--------------------------- |
+      |   6. Reply SMS from    |                              |
+      |      32811             |                              |
+      | <--------------------- |                              |
+```
+
+In short: **User -> SMS -> eSMS Africa -> Webhook/API -> Your Backend -> eSMS Africa -> User.**
+
+1. A user texts your short code (and keyword, on a shared code).
+2. eSMS matches the message to your service.
+3. eSMS posts a signed `message.inbound` event to your webhook, including a
+   [`two_way` block](/docs/api-reference/two-way#inbound-webhook) that tells you
+   which service, number and keyword it arrived on.
+4. Your backend handles it - store the answer, look up an account, route to an agent.
+5. You reply with [`POST /api/two-way/services/{id}/reply`](/docs/api-reference/two-way#reply-from-the-short-code).
+6. The reply is delivered to the user **from your short code**, so the conversation
+   stays on one number.
+
+No webhook yet? Every inbound message is also stored and readable with
+[`GET /api/two-way/services/{id}/messages`](/docs/api-reference/two-way#list-messages),
+and you can turn on an automatic reply or email forwarding per service.
+
+## Commercials
+
+Two-Way SMS is priced per country in **USD** and paid from your prepaid eSMS
+wallet. There are four parts:
+
+| Item | When it is charged | What it covers |
+|------|--------------------|----------------|
+| **Setup fee** | Once, when your request is approved | Provisioning the short code or keyword on the networks |
+| **Monthly maintenance** | On approval, then every 30 days | Keeping the code or keyword live. VAT inclusive |
+| **Incoming SMS** | Per message delivered to your service | Each SMS a user sends to your code. Priced at the country's **Basic SMS rate** unless a custom two-way price is set |
+| **Outgoing SMS** | Per reply SMS (per segment) | Each SMS you send from the code. Priced at the country's **Basic SMS rate** unless a custom two-way price is set |
+
+On a **toll free** code you also pay the incoming rate on behalf of the end user
+(the end user pays nothing). On a **shared** code the monthly fee is the country's
+shared keyword fee, which is the same as or lower than the dedicated monthly fee.
+
+### Per-SMS prices follow the Basic SMS rate
+
+By default, the incoming and outgoing per-SMS price for a country is the same USD
+per-SMS figure shown as **Basic** on [esmsafrica.io/pricing](https://esmsafrica.io/pricing)
+for that country. When the Basic rate changes, two-way prices change with it. Where a
+country has a custom two-way price instead, that price is used. The public
+[pricing endpoint](/docs/api-reference/two-way#get-pricing) tells you which applies:
+
+| Field | Meaning |
+|-------|---------|
+| `inbound_price_usd` / `outbound_price_usd` | The **effective** per-SMS price you are charged (custom price, or the Basic SMS rate) |
+| `sms_basic_price_usd` | The country's Basic SMS rate in USD (`null` if the country has no SMS route yet) |
+| `price_source` | `"basic"` - per-SMS prices follow the Basic SMS rate; `"custom"` - a custom two-way price is set |
+
+If your account has a per-customer SMS price for a country, replies you send from the
+short code use that price.
+
+### Example - Nigeria
+
+Networks: **MTN, Airtel, Glo, 9mobile**
+
+| Item | Price |
+|------|-------|
+| Setup fee (one-time) | USD 100 |
+| Monthly maintenance (VAT inclusive) | USD 50 per month |
+| Incoming SMS | Nigeria's Basic SMS rate, per SMS |
+| Outgoing SMS | Nigeria's Basic SMS rate, per SMS segment |
+
+For a month with **10,000 incoming** messages and **10,000 single-segment replies**,
+where `B` is Nigeria's Basic SMS rate in USD:
+
+```
+Monthly maintenance            USD 50
+10,000 incoming x B            USD 10,000 x B
+10,000 outgoing x B            USD 10,000 x B
+                               ----------------------------
+Month total                    USD 50 + (20,000 x B)
+First month                    + USD 100 setup
+```
+
+Look up `B` (`sms_basic_price_usd`) for Nigeria on
+[esmsafrica.io/pricing](https://esmsafrica.io/pricing) or from the pricing endpoint,
+and use the effective `inbound_price_usd` and `outbound_price_usd` when a country
+has a custom price.
+
+Live prices for every country are on [esmsafrica.io/two-way-sms](https://esmsafrica.io/two-way-sms)
+and from the public [`GET /api/two-way/pricing`](/docs/api-reference/two-way#get-pricing)
+endpoint. Prices can change per country; the price shown when you request a
+service is the one you are charged.
+
+### Sender IDs
+
+Two-Way replies are sent from your short code, so you do not need an alphanumeric
+sender ID for them. If you also send one-way SMS with a branded sender ID, sender ID
+registration fees apply per country - see [Sender ID pricing](/docs/sender-ids/overview#sender-id-pricing).
+
+### Billing rules
+
+- **Nothing is charged when you request a service.** The setup fee and the first
+  monthly fee are taken from your wallet only when the request is approved. A
+  rejected request costs nothing.
+- **Monthly renewals** are charged every 30 days from approval. If your wallet
+  cannot cover the fee, the service becomes `past_due` and the charge is retried
+  daily. After **7 days** past due, inbound forwarding is suspended - messages are
+  still received and stored, but not sent to your webhook - and you are notified.
+  Top up and the service resumes on the next successful charge.
+- **Incoming SMS** are charged when the message is delivered to your service. If
+  your balance is too low the message is **still stored** (flagged `unbilled`) and
+  you are notified - a customer's message is never dropped.
+- **Cancelling** a service stops future monthly charges.
+
+## Onboarding & KYC
+
+Short codes are provisioned with the mobile networks, so every service goes
+through a short business review.
+
+1. **Sign in** to [sms.esmsafrica.io](https://sms.esmsafrica.io) and open **Two-Way SMS**
+   ([sms.esmsafrica.io/two-way](https://sms.esmsafrica.io/two-way)).
+2. **Choose the country** and review its setup, monthly, incoming and outgoing prices
+   and the networks served.
+3. **Pick the configuration** - dedicated or shared (with your keyword), standard
+   rated or toll free (where available).
+4. **Describe your use case** - survey, marketing, support or other, with an example
+   of the messages users will send and what you will reply.
+5. **Add your company details and KYC documents** - typically a certificate of
+   incorporation or business registration, a tax registration document, an ID for a
+   director or authorised signatory, and a short authorisation letter on company
+   letterhead.
+6. **Submit.** The eSMS team reviews the request and may ask for more information.
+   Final requirements depend on the number configuration and on what each network
+   requires in that country.
+7. **Approval** - the setup fee and first monthly fee are charged, the short code (or
+   keyword) is assigned to your service and the service becomes `active`.
+
+You can also submit the request over the API with
+[`POST /api/two-way/services`](/docs/api-reference/two-way#request-a-service).
+
+## Going live checklist
+
+- [ ] Wallet topped up to cover the setup fee, the first month and expected traffic
+- [ ] Service request submitted with complete company details and KYC documents
+- [ ] Service approved and a short code assigned (`status` is `active`)
+- [ ] Webhook URL set on the service (or an account `mo_url` in [Webhooks](/docs/delivery/webhooks))
+- [ ] Webhook verifies the `X-Webhook-Signature` and returns `2xx` within a few seconds
+- [ ] Your backend is idempotent on `message_id` (retries can deliver the same event twice)
+- [ ] Replies sent with `POST /services/{id}/reply` so they come from your short code
+- [ ] An auto reply configured as a safety net while your backend is offline
+- [ ] STOP and HELP flows tested from a real handset on each network you target
+- [ ] Low-balance alerts on, so a monthly renewal never lapses
+
+## Best practices
+
+**Keywords**
+- Keep keywords short, memorable and easy to type on any phone - one word,
+  letters and digits only (`JOIN`, `VOTE`, `HELP2`).
+- Avoid words people use for other things (`STOP`, `START`, `HELP`, `YES`, `NO`).
+- Print the exact instruction: *"Text JOIN to 32811"*. On a shared code, always lead
+  with the keyword.
+
+**STOP and HELP**
+- Recipients who text `STOP` (or `UNSUBSCRIBE`, `CANCEL`, `END`, `QUIT`, ...) are added
+  to your [opt-out list](https://docs.esmsafrica.io/docs/api-reference/sms/opt-outs) automatically and are not
+  messaged again by your account until they text `START`.
+- Answer `HELP` with who you are, what the service does and how to opt out.
+- Say how to opt out in your first marketing message (*"Reply STOP to opt out"*).
+
+**Response time**
+- Acknowledge every message. Reply within seconds for automated flows and set
+  expectations for human ones (*"Thanks - an agent will reply within 2 hours"*).
+- Return `2xx` from your webhook quickly and do slow work in the background; failed
+  deliveries are retried after 1m, 5m, 30m, 2h and 8h.
+- Use the auto reply so users get an answer even if your backend is down.
+
+**Content**
+- Follow the [Acceptable Use Policy](https://esmsafrica.io/acceptable-use) - marketing
+  needs consent, and each network may review campaign content.
+- Keep replies within one segment (160 GSM-7 characters) where you can - each segment
+  is billed.
+
+## FAQ
+
+**What is a short code?**
+A short (usually five digit) number, such as `32811`, that people can text and
+receive messages from. Short codes are provisioned with the mobile networks, so they
+work across the networks served in that country.
+
+**Dedicated or shared - which should I choose?**
+Choose shared to launch quickly at lower cost with a keyword. Choose dedicated when
+you want the whole number for your brand, run many campaigns, or expect high volume.
+
+**Do my users pay to text the code?**
+On a standard rated code, users pay their network's normal rate to send a message
+and nothing to receive your reply. On a toll free code, users pay nothing and you
+cover the cost of all messages.
+
+**When am I charged the setup fee?**
+Only when your request is approved. Requesting is free, and rejected requests cost
+nothing.
+
+**What happens if my wallet runs low?**
+Incoming messages are still stored (marked `unbilled`) and you are notified. If a
+monthly fee cannot be charged, the service is `past_due` and retried daily; after 7
+days inbound forwarding is suspended until you top up. Messages are never dropped.
+
+**Can I reply from the short code?**
+Yes - `POST /api/two-way/services/{id}/reply` sends from your short code at the
+country's outgoing rate (the Basic SMS rate unless a custom price is set).
+
+**Can I change my webhook or auto reply later?**
+Yes - from the dashboard or with `PATCH /api/two-way/services/{id}`.
+
+**Can I use the same short code in several countries?**
+Short codes are national. Request one service per country; each has its own number
+and prices.
+
+**How long does approval take?**
+It depends on the country and network requirements. Shared keywords on an existing
+code are usually fastest; a new dedicated code takes longer because each network
+provisions it.
+
+## Support
+
+Need help choosing a configuration or preparing KYC documents? Chat with the team on
+WhatsApp at [+254 11 449 4147](https://wa.me/254114494147), or email
+[support@esmsafrica.io](mailto:support@esmsafrica.io).
+
+<Cards>
+  <Card title="Two-Way SMS API" href="/docs/api-reference/two-way" description="Pricing, services, messages, replies, keywords and the inbound webhook." />
+  <Card title="Webhooks" href="/docs/delivery/webhooks" description="Signing secret, headers and signature verification." />
+  <Card title="Opt-outs" href="https://docs.esmsafrica.io/docs/api-reference/sms/opt-outs" description="STOP/START handling and your opt-out list." />
+</Cards>

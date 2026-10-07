@@ -1,0 +1,1065 @@
+---
+title: Two-Way SMS
+description: Pricing, services, inbound messages, replies from your short code, keyword checks and the message.inbound webhook.
+---
+
+## Overview
+
+The Two-Way SMS API manages short code services - dedicated or shared (keyword),
+standard rated or toll free - and lets you read inbound messages and reply from
+your short code. Inbound messages are pushed to your backend with a signed
+[`message.inbound` webhook](#inbound-webhook). For the product overview,
+commercials and onboarding, see the [Two-Way SMS guide](/docs/two-way/overview).
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/two-way/pricing` | [Per-country two-way pricing](#get-pricing) (public, no auth) |
+| `GET` | `/api/two-way/services` | [List your services](#list-services) |
+| `POST` | `/api/two-way/services` | [Request a service](#request-a-service) |
+| `GET` | `/api/two-way/services/{id}` | [Get a service](#get-a-service) |
+| `PATCH` | `/api/two-way/services/{id}` | [Update a service](#update-a-service) |
+| `POST` | `/api/two-way/services/{id}/cancel` | [Cancel a service](#cancel-a-service) |
+| `GET` | `/api/two-way/services/{id}/messages` | [List messages](#list-messages) |
+| `POST` | `/api/two-way/services/{id}/reply` | [Reply from the short code](#reply-from-the-short-code) |
+| `GET` | `/api/two-way/keywords/check` | [Check keyword availability](#check-keyword-availability) |
+
+Every path is also served under `/v1/two-way/...` (for example
+`GET https://sms.esmsafrica.io/v1/two-way/services`) - the two prefixes are identical.
+
+## Authentication
+
+Every endpoint except `GET /pricing` needs a signed-in dashboard session or an API
+key from **Developers → API Keys**:
+
+```
+Authorization: Bearer esms_live_your_api_key
+```
+
+| Endpoints | API key scope |
+|-----------|---------------|
+| `GET /services`, `GET /services/{id}`, `GET /services/{id}/messages`, `GET /keywords/check` | `two_way` or `query` |
+| `POST /services`, `PATCH /services/{id}`, `POST /services/{id}/cancel` | `two_way` |
+| `POST /services/{id}/reply` | `two_way` or `send` |
+
+New API keys get `send`, `query` and `webhooks` by default, so they can already read services
+and reply from a short code. To request or change services over the API, use a key that also
+has the `two_way` scope.
+
+A key without the required scope gets `403 insufficient_scope`. Requests on a
+suspended account get `403 account_suspended`.
+
+## Get pricing
+
+```
+GET https://sms.esmsafrica.io/api/two-way/pricing
+```
+
+Public - no authentication. Cached for up to 5 minutes. Returns every country where
+Two-Way SMS is offered, in USD.
+
+Per-SMS prices follow each country's **Basic SMS rate** (the USD per-SMS figure shown as
+Basic on [esmsafrica.io/pricing](https://esmsafrica.io/pricing)) unless a custom two-way
+price is set for that country. `inbound_price_usd` and `outbound_price_usd` are always
+the **effective** prices you are charged; `price_source` says where they come from.
+Prices in the examples on this page are illustrative - read live values from this endpoint.
+
+### Response
+
+```json
+{
+  "currency": "USD",
+  "countries": [
+    {
+      "country_code": "NG",
+      "country_name": "Nigeria",
+      "setup_fee_usd": 100,
+      "monthly_fee_usd": 50,
+      "shared_keyword_monthly_fee_usd": 50,
+      "sms_basic_price_usd": 0.0185,
+      "price_source": "basic",
+      "inbound_price_usd": 0.0185,
+      "outbound_price_usd": 0.0185,
+      "toll_free_available": false,
+      "toll_free_inbound_price_usd": null,
+      "networks": ["MTN", "Airtel", "Glo", "9mobile"],
+      "is_available": true
+    }
+  ]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `country_code` | string | ISO 3166-1 alpha-2 code. |
+| `country_name` | string | Display name. |
+| `setup_fee_usd` | number | One-time setup fee, charged on approval. |
+| `monthly_fee_usd` | number | Monthly maintenance for a dedicated code, VAT inclusive. Charged on approval, then every 30 days. |
+| `shared_keyword_monthly_fee_usd` | number | Monthly fee for a keyword on a shared code. |
+| `sms_basic_price_usd` | number \| null | The country's Basic SMS rate in USD per SMS. `null` when the country has no SMS route yet. |
+| `price_source` | string | `"basic"` - per-SMS prices follow the Basic SMS rate. `"custom"` - a custom two-way price is set for this country. |
+| `inbound_price_usd` | number \| null | Effective price per incoming SMS, charged to the service owner (custom price, or the Basic SMS rate). |
+| `outbound_price_usd` | number \| null | Effective price per outgoing reply SMS, per segment (custom price, or the Basic SMS rate). If your account has a per-customer SMS price for the country, replies use that instead. |
+| `toll_free_available` | boolean | Whether toll free short codes are offered in this country. |
+| `toll_free_inbound_price_usd` | number \| null | Price per incoming SMS on a toll free code. `null` means the same as `inbound_price_usd`. |
+| `networks` | string[] | Mobile networks served. |
+| `is_available` | boolean | Whether new services can be requested in this country. |
+
+A country with no Basic SMS rate and no custom price returns `null` per-SMS prices and
+`is_available: false`.
+
+### Example
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl https://sms.esmsafrica.io/api/two-way/pricing
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/api/two-way/pricing");
+const { countries } = await res.json();
+const ng = countries.find((c) => c.country_code === "NG");
+console.log(ng.setup_fee_usd, ng.monthly_fee_usd, ng.inbound_price_usd, ng.price_source);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import requests
+
+data = requests.get("https://sms.esmsafrica.io/api/two-way/pricing", timeout=10).json()
+ng = next(c for c in data["countries"] if c["country_code"] == "NG")
+print(ng["setup_fee_usd"], ng["monthly_fee_usd"], ng["inbound_price_usd"], ng["price_source"])
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$data = json_decode(file_get_contents("https://sms.esmsafrica.io/api/two-way/pricing"), true);
+foreach ($data["countries"] as $c) {
+    if ($c["country_code"] === "NG") {
+        echo $c["setup_fee_usd"] . " " . $c["monthly_fee_usd"] . PHP_EOL;
+    }
+}
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+)
+
+type Pricing struct {
+	Currency  string `json:"currency"`
+	Countries []struct {
+		CountryCode     string   `json:"country_code"`
+		SetupFeeUSD     float64  `json:"setup_fee_usd"`
+		MonthlyFeeUSD   float64  `json:"monthly_fee_usd"`
+		BasicPriceUSD   *float64 `json:"sms_basic_price_usd"`
+		PriceSource     string   `json:"price_source"` // "basic" or "custom"
+		InboundPriceUSD *float64 `json:"inbound_price_usd"`
+		OutboundPrice   *float64 `json:"outbound_price_usd"`
+		Networks        []string `json:"networks"`
+	} `json:"countries"`
+}
+
+func main() {
+	res, err := http.Get("https://sms.esmsafrica.io/api/two-way/pricing")
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	var p Pricing
+	json.NewDecoder(res.Body).Decode(&p)
+	for _, c := range p.Countries {
+		fmt.Println(c.CountryCode, c.SetupFeeUSD, c.MonthlyFeeUSD, c.PriceSource)
+	}
+}
+```
+
+</Tab>
+</Tabs>
+
+## The service object
+
+```json
+{
+  "id": 42,
+  "status": "active",
+  "country_code": "NG",
+  "type": "shared",
+  "keyword": "JOIN",
+  "toll_free": false,
+  "number": "32811",
+  "use_case": "marketing",
+  "company_name": "Acme Foods Ltd",
+  "webhook_url": "https://example.com/hooks/two-way",
+  "auto_reply_enabled": true,
+  "auto_reply_text": "Thanks! You are on the Acme list. Reply STOP to opt out.",
+  "forward_email": "support@acme.example",
+  "setup_fee_usd": 100,
+  "monthly_fee_usd": 50,
+  "inbound_price_usd": 0.0185,
+  "outbound_price_usd": 0.0185,
+  "next_billing_at": "2026-11-07T09:00:00+00:00",
+  "created_at": "2026-10-06T14:12:00+00:00"
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `id` | Service ID used in `/services/{id}` paths. |
+| `status` | `pending` (under review), `active`, `past_due` (monthly fee unpaid, retried daily), `suspended` (inbound stored but not forwarded), `rejected` or `cancelled`. |
+| `type` | `dedicated` or `shared`. |
+| `keyword` | Your keyword on a shared code (`null` for dedicated). |
+| `toll_free` | `true` for a toll free code - you pay for incoming and outgoing SMS; the end user pays nothing. |
+| `number` | The short code assigned to the service. `null` until approved. |
+| `webhook_url` | Where `message.inbound` events for this service are posted. When `null`, events go to your account `mo_url` from [Webhooks](/docs/delivery/webhooks). |
+| `auto_reply_enabled` / `auto_reply_text` | Automatic reply sent from the short code to every inbound message. |
+| `forward_email` | Optional address that receives a copy of each inbound message. |
+| `*_usd` | The prices that apply to this service. Per-SMS prices are the effective prices (the country's Basic SMS rate unless a custom two-way price is set). |
+
+## List services
+
+```
+GET https://sms.esmsafrica.io/api/two-way/services
+```
+
+Scope: `two_way` or `query`. Returns all your services, newest first.
+
+```json
+{
+  "services": [
+    { "id": 42, "status": "active", "country_code": "NG", "type": "shared", "keyword": "JOIN", "number": "32811", "...": "..." }
+  ]
+}
+```
+
+```bash
+curl https://sms.esmsafrica.io/api/two-way/services \
+  -H "Authorization: Bearer esms_live_your_api_key"
+```
+
+## Request a service
+
+```
+POST https://sms.esmsafrica.io/api/two-way/services
+```
+
+Scope: `two_way`. Creates a service request in `pending` status for review. **Nothing is
+charged now** - the setup fee and first monthly fee are taken from your wallet when the
+request is approved, and a rejected request costs nothing.
+
+### Request body
+
+```json
+{
+  "country_code": "NG",
+  "type": "shared",
+  "keyword": "JOIN",
+  "toll_free": false,
+  "use_case": "marketing",
+  "company_name": "Acme Foods Ltd",
+  "kyc_document_urls": [
+    "https://files.acme.example/kyc/certificate-of-incorporation.pdf",
+    "https://files.acme.example/kyc/director-id.pdf"
+  ],
+  "webhook_url": "https://example.com/hooks/two-way"
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `country_code` | string | Yes | ISO alpha-2 code of a country where `is_available` is `true`. |
+| `type` | string | Yes | `dedicated` or `shared`. |
+| `keyword` | string | For `shared` | One word, letters and digits only. Check it first with [keyword availability](#check-keyword-availability). |
+| `toll_free` | boolean | No | Request a toll free code (default `false`). Only where `toll_free_available` is `true`. |
+| `use_case` | string | Yes | What the service is for, e.g. `survey`, `marketing`, `support`, with any detail you can add. |
+| `company_name` | string | Yes | Registered business name. |
+| `kyc_document_urls` | string[] | Yes | Links to your KYC documents (business registration, tax registration, director ID, authorisation letter). |
+| `webhook_url` | string | No | HTTPS endpoint for `message.inbound` events. Can be set later. |
+
+### Response (201)
+
+The new [service object](#the-service-object) with `status: "pending"` and
+`number: null`.
+
+### Examples
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl -X POST https://sms.esmsafrica.io/api/two-way/services \
+  -H "Authorization: Bearer esms_live_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "country_code": "NG",
+    "type": "shared",
+    "keyword": "JOIN",
+    "toll_free": false,
+    "use_case": "marketing",
+    "company_name": "Acme Foods Ltd",
+    "kyc_document_urls": ["https://files.acme.example/kyc/certificate-of-incorporation.pdf"],
+    "webhook_url": "https://example.com/hooks/two-way"
+  }'
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/api/two-way/services", {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${process.env.ESMS_API_KEY}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    country_code: "NG",
+    type: "shared",
+    keyword: "JOIN",
+    toll_free: false,
+    use_case: "marketing",
+    company_name: "Acme Foods Ltd",
+    kyc_document_urls: ["https://files.acme.example/kyc/certificate-of-incorporation.pdf"],
+    webhook_url: "https://example.com/hooks/two-way",
+  }),
+});
+const service = await res.json();
+console.log(service.id, service.status); // 42 "pending"
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+import requests
+
+res = requests.post(
+    "https://sms.esmsafrica.io/api/two-way/services",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    json={
+        "country_code": "NG",
+        "type": "shared",
+        "keyword": "JOIN",
+        "toll_free": False,
+        "use_case": "marketing",
+        "company_name": "Acme Foods Ltd",
+        "kyc_document_urls": ["https://files.acme.example/kyc/certificate-of-incorporation.pdf"],
+        "webhook_url": "https://example.com/hooks/two-way",
+    },
+    timeout=15,
+)
+res.raise_for_status()
+service = res.json()
+print(service["id"], service["status"])
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$ch = curl_init("https://sms.esmsafrica.io/api/two-way/services");
+curl_setopt_array($ch, [
+    CURLOPT_POST => true,
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => [
+        "Authorization: Bearer " . getenv("ESMS_API_KEY"),
+        "Content-Type: application/json",
+    ],
+    CURLOPT_POSTFIELDS => json_encode([
+        "country_code" => "NG",
+        "type" => "shared",
+        "keyword" => "JOIN",
+        "toll_free" => false,
+        "use_case" => "marketing",
+        "company_name" => "Acme Foods Ltd",
+        "kyc_document_urls" => ["https://files.acme.example/kyc/certificate-of-incorporation.pdf"],
+        "webhook_url" => "https://example.com/hooks/two-way",
+    ]),
+]);
+$service = json_decode(curl_exec($ch), true);
+echo $service["id"] . " " . $service["status"] . PHP_EOL;
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
+)
+
+func main() {
+	body, _ := json.Marshal(map[string]any{
+		"country_code":      "NG",
+		"type":              "shared",
+		"keyword":           "JOIN",
+		"toll_free":         false,
+		"use_case":          "marketing",
+		"company_name":      "Acme Foods Ltd",
+		"kyc_document_urls": []string{"https://files.acme.example/kyc/certificate-of-incorporation.pdf"},
+		"webhook_url":       "https://example.com/hooks/two-way",
+	})
+	req, _ := http.NewRequest("POST", "https://sms.esmsafrica.io/api/two-way/services", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	var service map[string]any
+	json.NewDecoder(res.Body).Decode(&service)
+	fmt.Println(service["id"], service["status"])
+}
+```
+
+</Tab>
+</Tabs>
+
+## Get a service
+
+```
+GET https://sms.esmsafrica.io/api/two-way/services/{id}
+```
+
+Scope: `two_way` or `query`. Returns the [service object](#the-service-object). `404` if the service
+does not exist or is not yours.
+
+```bash
+curl https://sms.esmsafrica.io/api/two-way/services/42 \
+  -H "Authorization: Bearer esms_live_your_api_key"
+```
+
+## Update a service
+
+```
+PATCH https://sms.esmsafrica.io/api/two-way/services/{id}
+```
+
+Scope: `two_way`. Send only the fields you want to change.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `webhook_url` | string \| null | HTTPS endpoint for `message.inbound` events. `null` falls back to your account `mo_url`. |
+| `auto_reply_text` | string | Text of the automatic reply sent from the short code. |
+| `auto_reply_enabled` | boolean | Turn the automatic reply on or off. |
+| `forward_email` | string \| null | Email address that receives a copy of each inbound message. `null` turns it off. |
+
+```bash
+curl -X PATCH https://sms.esmsafrica.io/api/two-way/services/42 \
+  -H "Authorization: Bearer esms_live_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "webhook_url": "https://example.com/hooks/two-way",
+    "auto_reply_enabled": true,
+    "auto_reply_text": "Thanks! We got your message and will reply shortly."
+  }'
+```
+
+Returns the updated [service object](#the-service-object). Webhook URLs must be publicly
+reachable - private, loopback and metadata addresses are refused.
+
+## Cancel a service
+
+```
+POST https://sms.esmsafrica.io/api/two-way/services/{id}/cancel
+```
+
+Scope: `two_way`. Cancels a pending request or an active service. Future monthly charges
+stop and the short code or keyword is released. Returns the
+[service object](#the-service-object) with `status: "cancelled"`.
+
+```bash
+curl -X POST https://sms.esmsafrica.io/api/two-way/services/42/cancel \
+  -H "Authorization: Bearer esms_live_your_api_key"
+```
+
+## List messages
+
+```
+GET https://sms.esmsafrica.io/api/two-way/services/{id}/messages
+```
+
+Scope: `two_way` or `query`. Inbound messages received on the service and the replies you sent from
+it, newest first. Every inbound message is stored - including ones received while the
+service was `suspended` or your balance was too low (`billed: false`).
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `limit` | integer | Max messages to return. |
+
+### Response
+
+```json
+{
+  "messages": [
+    {
+      "id": "mo_def456",
+      "direction": "inbound",
+      "from": "+2348031234567",
+      "to": "32811",
+      "text": "JOIN promo",
+      "keyword": "JOIN",
+      "phone": "+2348031234567",
+      "status": "received",
+      "billed": true,
+      "cost": 0.0185,
+      "auto_reply": false,
+      "created_at": "2026-10-07T10:15:02+00:00"
+    },
+    {
+      "id": "msg_abc123",
+      "direction": "outbound",
+      "from": "32811",
+      "to": "+2348031234567",
+      "text": "Welcome to Acme deals! Reply STOP to opt out.",
+      "keyword": null,
+      "phone": "+2348031234567",
+      "status": "delivered",
+      "billed": null,
+      "cost": 0.0185,
+      "auto_reply": false,
+      "created_at": "2026-10-07T10:15:04+00:00"
+    }
+  ],
+  "total": 2
+}
+```
+
+### Examples
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl "https://sms.esmsafrica.io/api/two-way/services/42/messages?limit=50" \
+  -H "Authorization: Bearer esms_live_your_api_key"
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/api/two-way/services/42/messages?limit=50", {
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}` },
+});
+const { messages } = await res.json();
+for (const m of messages) console.log(m.direction, m.from, m.text);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+import requests
+
+res = requests.get(
+    "https://sms.esmsafrica.io/api/two-way/services/42/messages",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    params={"limit": 50},
+    timeout=15,
+)
+for m in res.json()["messages"]:
+    print(m["direction"], m["from"], m["text"])
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$ch = curl_init("https://sms.esmsafrica.io/api/two-way/services/42/messages?limit=50");
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY")],
+]);
+$data = json_decode(curl_exec($ch), true);
+foreach ($data["messages"] as $m) {
+    echo $m["direction"] . " " . $m["from"] . " " . $m["text"] . PHP_EOL;
+}
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+req, _ := http.NewRequest("GET", "https://sms.esmsafrica.io/api/two-way/services/42/messages?limit=50", nil)
+req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+res, err := http.DefaultClient.Do(req)
+if err != nil {
+	panic(err)
+}
+defer res.Body.Close()
+var out struct {
+	Messages []struct {
+		Direction string `json:"direction"`
+		From      string `json:"from"`
+		Text      string `json:"text"`
+	} `json:"messages"`
+}
+json.NewDecoder(res.Body).Decode(&out)
+for _, m := range out.Messages {
+	fmt.Println(m.Direction, m.From, m.Text)
+}
+```
+
+</Tab>
+</Tabs>
+
+## Reply from the short code
+
+```
+POST https://sms.esmsafrica.io/api/two-way/services/{id}/reply
+```
+
+Scope: `two_way` or `send`. Sends an SMS **from the service's short code** to a recipient. Billed per
+segment at the service's outgoing rate (`outbound_price_usd` - the country's Basic SMS
+rate unless a custom two-way price is set, or your per-customer SMS price for the
+country if you have one). Recipients on your [opt-out list](https://docs.esmsafrica.io/docs/api-reference/sms/opt-outs)
+are not messaged.
+
+### Request body
+
+```json
+{
+  "to": "+2348031234567",
+  "text": "Welcome to Acme deals! Reply STOP to opt out."
+}
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `to` | string | Yes | Recipient in international format. Must be in the service's country. |
+| `text` | string | Yes | Message content. 160 GSM-7 / 70 Unicode characters per segment. |
+
+### Response
+
+```json
+{
+  "id": "msg_abc123",
+  "status": "submitted",
+  "segments": 1,
+  "cost": 0.0185,
+  "currency": "USD",
+  "balance_after": 41.27
+}
+```
+
+Delivery reports for replies arrive on your `dlr_url` like any other message - see
+[Webhooks](/docs/delivery/webhooks).
+
+### Examples
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl -X POST https://sms.esmsafrica.io/api/two-way/services/42/reply \
+  -H "Authorization: Bearer esms_live_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "to": "+2348031234567", "text": "Welcome to Acme deals! Reply STOP to opt out." }'
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/api/two-way/services/42/reply", {
+  method: "POST",
+  headers: {
+    Authorization: `Bearer ${process.env.ESMS_API_KEY}`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    to: "+2348031234567",
+    text: "Welcome to Acme deals! Reply STOP to opt out.",
+  }),
+});
+if (!res.ok) throw new Error((await res.json()).error?.message);
+const reply = await res.json();
+console.log(reply.id, reply.cost);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+import requests
+
+res = requests.post(
+    "https://sms.esmsafrica.io/api/two-way/services/42/reply",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    json={"to": "+2348031234567", "text": "Welcome to Acme deals! Reply STOP to opt out."},
+    timeout=15,
+)
+res.raise_for_status()
+print(res.json()["id"])
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$ch = curl_init("https://sms.esmsafrica.io/api/two-way/services/42/reply");
+curl_setopt_array($ch, [
+    CURLOPT_POST => true,
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => [
+        "Authorization: Bearer " . getenv("ESMS_API_KEY"),
+        "Content-Type: application/json",
+    ],
+    CURLOPT_POSTFIELDS => json_encode([
+        "to" => "+2348031234567",
+        "text" => "Welcome to Acme deals! Reply STOP to opt out.",
+    ]),
+]);
+$reply = json_decode(curl_exec($ch), true);
+echo $reply["id"] . PHP_EOL;
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+body, _ := json.Marshal(map[string]string{
+	"to":   "+2348031234567",
+	"text": "Welcome to Acme deals! Reply STOP to opt out.",
+})
+req, _ := http.NewRequest("POST", "https://sms.esmsafrica.io/api/two-way/services/42/reply", bytes.NewReader(body))
+req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+req.Header.Set("Content-Type", "application/json")
+res, err := http.DefaultClient.Do(req)
+if err != nil {
+	panic(err)
+}
+defer res.Body.Close()
+var reply map[string]any
+json.NewDecoder(res.Body).Decode(&reply)
+fmt.Println(reply["id"], reply["cost"])
+```
+
+</Tab>
+</Tabs>
+
+## Check keyword availability
+
+```
+GET https://sms.esmsafrica.io/api/two-way/keywords/check?number={number}&keyword={keyword}
+```
+
+Scope: `two_way` or `query`. Checks whether a keyword is free on a shared short code before you
+request it. Matching is case-insensitive.
+
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| `number` | string | No | The shared short code, e.g. `32811`. Pass this or `country_code`. |
+| `country_code` | string | No | Check the keyword across the shared codes in a country, e.g. `NG`. |
+| `keyword` | string | Yes | The keyword you want, e.g. `JOIN`. |
+
+```json
+{
+  "keyword": "JOIN",
+  "available": true,
+  "reason": null
+}
+```
+
+```bash
+curl "https://sms.esmsafrica.io/api/two-way/keywords/check?number=32811&keyword=JOIN" \
+  -H "Authorization: Bearer esms_live_your_api_key"
+```
+
+## Inbound webhook
+
+When a user texts your short code, eSMS posts a `message.inbound` event to the
+service's `webhook_url` (or, if it has none, your account `mo_url` from
+[Webhooks](/docs/delivery/webhooks)). Two-way events carry a `two_way` block
+that identifies the service the message arrived on.
+
+```json
+{
+  "event": "message.inbound",
+  "message_id": "mo_def456",
+  "from": "+2348031234567",
+  "to": "32811",
+  "text": "JOIN promo",
+  "keyword": null,
+  "opt_out": false,
+  "two_way": {
+    "service_id": 42,
+    "number": "32811",
+    "keyword": "JOIN",
+    "type": "shared",
+    "toll_free": false
+  }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `message_id` | Unique ID of the inbound message. Use it to de-duplicate retries. |
+| `from` | The sender's phone number in international format. |
+| `to` | The short code that was texted. |
+| `text` | The full message text. |
+| `keyword` / `opt_out` | Set when the message is a STOP/START keyword - see [Opt-outs](https://docs.esmsafrica.io/docs/api-reference/sms/opt-outs). |
+| `two_way.service_id` | Your service ID - use it in `/services/{id}/reply`. |
+| `two_way.number` | The short code of the service. |
+| `two_way.keyword` | The matched keyword on a shared code (`null` on a dedicated code). |
+| `two_way.type` | `dedicated` or `shared`. |
+| `two_way.toll_free` | `true` if the message arrived on a toll free code. |
+
+### Headers
+
+| Header | Description |
+|--------|-------------|
+| `X-Webhook-ID` | Unique event ID (`evt_...`). |
+| `X-Webhook-Signature` | `sha256=<hex>` HMAC-SHA256 of the raw request body, keyed by your `signing_secret`. |
+| `Content-Type` | `application/json`. |
+
+The `signing_secret` is the same one used for all your webhooks - read it with
+`GET /api/webhooks` and rotate it with `POST /api/webhooks/rotate-secret`.
+
+### Verifying the signature and replying
+
+Compute HMAC-SHA256 over the **raw request body** with your `signing_secret`, compare it
+in constant time to `X-Webhook-Signature`, then reply from the short code.
+
+<Tabs items={["Node.js", "Python", "PHP", "Go"]}>
+<Tab value="Node.js">
+
+```js
+import crypto from "node:crypto";
+import express from "express";
+
+const app = express();
+const SECRET = process.env.ESMS_WEBHOOK_SECRET;
+const API_KEY = process.env.ESMS_API_KEY;
+
+function verify(raw, header) {
+  const expected = "sha256=" + crypto.createHmac("sha256", SECRET).update(raw).digest("hex");
+  const a = Buffer.from(header || "");
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+app.post("/hooks/two-way", express.raw({ type: "application/json" }), async (req, res) => {
+  if (!verify(req.body, req.get("X-Webhook-Signature"))) return res.sendStatus(401);
+  res.sendStatus(200); // acknowledge fast, work after
+
+  const event = JSON.parse(req.body.toString());
+  if (event.event !== "message.inbound" || !event.two_way || event.opt_out) return;
+
+  await fetch(`https://sms.esmsafrica.io/api/two-way/services/${event.two_way.service_id}/reply`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ to: event.from, text: "Thanks! You are subscribed." }),
+  });
+});
+
+app.listen(3000);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import hashlib
+import hmac
+import os
+
+import requests
+from flask import Flask, abort, request
+
+app = Flask(__name__)
+SECRET = os.environ["ESMS_WEBHOOK_SECRET"].encode()
+API_KEY = os.environ["ESMS_API_KEY"]
+
+@app.post("/hooks/two-way")
+def two_way():
+    raw = request.get_data()  # raw bytes, before JSON parsing
+    expected = "sha256=" + hmac.new(SECRET, raw, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, request.headers.get("X-Webhook-Signature", "")):
+        abort(401)
+
+    event = request.get_json()
+    tw = event.get("two_way")
+    if event.get("event") == "message.inbound" and tw and not event.get("opt_out"):
+        requests.post(
+            f"https://sms.esmsafrica.io/api/two-way/services/{tw['service_id']}/reply",
+            headers={"Authorization": f"Bearer {API_KEY}"},
+            json={"to": event["from"], "text": "Thanks! You are subscribed."},
+            timeout=10,
+        )
+    return "", 200
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$raw = file_get_contents("php://input");
+$secret = getenv("ESMS_WEBHOOK_SECRET");
+$expected = "sha256=" . hash_hmac("sha256", $raw, $secret);
+$header = $_SERVER["HTTP_X_WEBHOOK_SIGNATURE"] ?? "";
+
+if (!hash_equals($expected, $header)) {
+    http_response_code(401);
+    exit;
+}
+
+$event = json_decode($raw, true);
+http_response_code(200);
+
+if (($event["event"] ?? "") === "message.inbound" && !empty($event["two_way"]) && empty($event["opt_out"])) {
+    $id = $event["two_way"]["service_id"];
+    $ch = curl_init("https://sms.esmsafrica.io/api/two-way/services/{$id}/reply");
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_HTTPHEADER => [
+            "Authorization: Bearer " . getenv("ESMS_API_KEY"),
+            "Content-Type: application/json",
+        ],
+        CURLOPT_POSTFIELDS => json_encode(["to" => $event["from"], "text" => "Thanks! You are subscribed."]),
+    ]);
+    curl_exec($ch);
+}
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+)
+
+type Inbound struct {
+	Event  string `json:"event"`
+	From   string `json:"from"`
+	Text   string `json:"text"`
+	OptOut bool   `json:"opt_out"`
+	TwoWay *struct {
+		ServiceID int    `json:"service_id"`
+		Number    string `json:"number"`
+		Keyword   string `json:"keyword"`
+		Type      string `json:"type"`
+		TollFree  bool   `json:"toll_free"`
+	} `json:"two_way"`
+}
+
+func handler(w http.ResponseWriter, r *http.Request) {
+	raw, _ := io.ReadAll(r.Body)
+	mac := hmac.New(sha256.New, []byte(os.Getenv("ESMS_WEBHOOK_SECRET")))
+	mac.Write(raw)
+	expected := "sha256=" + hex.EncodeToString(mac.Sum(nil))
+	if !hmac.Equal([]byte(expected), []byte(r.Header.Get("X-Webhook-Signature"))) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+
+	var ev Inbound
+	if json.Unmarshal(raw, &ev) != nil || ev.Event != "message.inbound" || ev.TwoWay == nil || ev.OptOut {
+		return
+	}
+	body, _ := json.Marshal(map[string]string{"to": ev.From, "text": "Thanks! You are subscribed."})
+	url := fmt.Sprintf("https://sms.esmsafrica.io/api/two-way/services/%d/reply", ev.TwoWay.ServiceID)
+	req, _ := http.NewRequest("POST", url, bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	req.Header.Set("Content-Type", "application/json")
+	go http.DefaultClient.Do(req)
+}
+
+func main() {
+	http.HandleFunc("/hooks/two-way", handler)
+	http.ListenAndServe(":3000", nil)
+}
+```
+
+</Tab>
+</Tabs>
+
+### Delivery & retries
+
+Respond with a `2xx` status within a few seconds and do slow work in the background.
+If your endpoint fails or times out, the event is retried after **1 minute, 5 minutes,
+30 minutes, 2 hours and 8 hours**. Each attempt is listed in your webhook delivery
+log (event type `mo`). Retries reuse the same `message_id`, so de-duplicate on it.
+
+If a service is `suspended` (monthly fee unpaid for 7 days), inbound messages are still
+stored and readable with [List messages](#list-messages), but not posted to your webhook
+until the service is active again.
+
+## Errors
+
+Errors use the standard [error envelope](/docs/help/errors):
+
+```json
+{
+  "error": {
+    "code": "conflict",
+    "message": "Keyword JOIN is already taken on 32811",
+    "request_id": "3f9a1c2b4d5e6f708192a3b4c5d6e7f8"
+  }
+}
+```
+
+| HTTP | `code` | When it happens |
+|------|--------|-----------------|
+| `400` | `bad_request` | Unknown or unavailable country, missing `keyword` on a shared request, toll free not offered, invalid number. |
+| `401` | `unauthorized` | Missing or invalid API key or session. |
+| `402` | `insufficient_balance` | The wallet cannot cover a reply (`required`, `available` in `details`). |
+| `403` | `insufficient_scope` | The API key lacks the scope this endpoint needs (`two_way`, or `query`/`send` where listed). |
+| `403` | `account_suspended` | The account is suspended. |
+| `403` | `recipient_opted_out` | The reply recipient is on your STOP list. |
+| `404` | `not_found` | The service does not exist or is not yours. |
+| `409` | `conflict` | The keyword is taken on that number, or the service cannot change from its current status (for example replying on a service that is not `active`). |
+| `422` | `validation_error` | The request body failed validation (`details.errors` lists the fields). |
+| `429` | `rate_limited` | Too many requests - retry with backoff. |
+
+## Related
+
+<Cards>
+  <Card title="Two-Way SMS guide" href="/docs/two-way/overview" description="Dedicated vs shared, toll free, commercials, KYC and going live." />
+  <Card title="Inbound & two-way" href="https://docs.esmsafrica.io/docs/api-reference/sms/conversations" description="Replies to your regular sender IDs and conversation threads." />
+  <Card title="Webhooks" href="/docs/delivery/webhooks" description="Configure endpoints, signing secret and DLR events." />
+</Cards>

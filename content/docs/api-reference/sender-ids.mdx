@@ -1,81 +1,276 @@
 ---
 title: Sender IDs API
-description: Full reference for sender ID request endpoints.
+description: Per-country Sender ID fees, and listing and requesting sender IDs for your account.
 ---
 
-## POST /api/sender-ids
+## Overview
 
-Request a new sender ID for approval.
+A sender ID is the name (up to 11 characters) or number shown as the sender of your SMS.
+Registration rules and fees differ by country. For the product overview and how
+approval works, see the [Sender IDs guide](/docs/sender-ids/overview).
 
-**Auth:** Required
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/api/sender-ids/fees` | [Sender ID fees for all 54 countries](#get-sender-id-fees) (public, no auth) |
+| `GET` | `/api/sender-ids` | [List your sender IDs](#list-your-sender-ids) |
+| `POST` | `/api/sender-ids` | [Request a sender ID](#request-a-sender-id) |
 
-### Request body
+## Get Sender ID fees
+
+```
+GET https://sms.esmsafrica.io/api/sender-ids/fees
+```
+
+Public - no authentication. Cached for up to 5 minutes. Returns the Sender ID fee for
+every one of the 54 African countries, in USD.
+
+Fees are charged from your wallet **only when a request is approved** - one fee per
+country in the request that has a fee. Nothing is charged on rejection.
+
+### Response
 
 ```json
 {
-  "name": "MyApp",
-  "countries": ["UG", "KE", "NG"],
-  "use_case": "OTP delivery for fintech mobile app"
+  "currency": "USD",
+  "countries": [
+    {
+      "country_code": "GH",
+      "country_name": "Ghana",
+      "fee_usd": 150,
+      "fee_type": "one_time",
+      "covers": "all_networks",
+      "fee_table": null,
+      "note": null
+    },
+    {
+      "country_code": "KE",
+      "country_name": "Kenya",
+      "fee_usd": null,
+      "fee_type": "per_network",
+      "covers": null,
+      "fee_table": [
+        ["Bundled Safaricom & Airtel", "KES 14,100", "None"],
+        ["Safaricom only", "KES 8,700", "None"],
+        ["Airtel only", "KES 8,700", "None"],
+        ["Telkom", "KES 4,500", "None"],
+        ["Equitel", "KES 9,000", "None"]
+      ],
+      "note": "One-off setup per network - no monthly maintenance."
+    },
+    {
+      "country_code": "NG",
+      "country_name": "Nigeria",
+      "fee_usd": null,
+      "fee_type": "on_request",
+      "covers": null,
+      "fee_table": null,
+      "note": "Confirmed during onboarding"
+    }
+  ]
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `country_code` | string | ISO 3166-1 alpha-2 code. |
+| `country_name` | string | Display name. |
+| `fee_usd` | number \| null | Flat fee in USD. `150` for flat-fee countries; `null` when the country uses a per-network fee table or the fee is confirmed at onboarding. |
+| `fee_type` | string | `one_time` - a single flat fee for the country. `on_request` - fees are confirmed during onboarding. Countries with a `fee_table` may use another value, so check `fee_table` first. |
+| `covers` | string \| null | `all_networks` when one fee registers the sender ID on every network in the country. |
+| `fee_table` | array \| null | Per-network fees as rows of `[network, setup, recurring]`, in local currency. `null` when not applicable. |
+| `note` | string \| null | Extra detail, for example `Confirmed during onboarding`. |
+
+### Fees by country
+
+| Countries | Fee |
+|-----------|-----|
+| Cameroon, Djibouti, Egypt, Ghana, Somalia, Tanzania | **USD 150 one-time** per country - covers registration on all networks |
+| Kenya | Per-network table (one-off setup, no monthly maintenance) - see below |
+| Uganda | Per-network table - see below |
+| All other countries | Confirmed during onboarding |
+
+**Kenya**
+
+| Network | Setup | Recurring |
+|---------|-------|-----------|
+| Bundled Safaricom & Airtel | KES 14,100 | None |
+| Safaricom only | KES 8,700 | None |
+| Airtel only | KES 8,700 | None |
+| Telkom | KES 4,500 | None |
+| Equitel | KES 9,000 | None |
+
+**Uganda**
+
+| Network | Setup | Recurring |
+|---------|-------|-----------|
+| MTN | None | UGX 250,000 / month |
+| Airtel | UGX 250,000 | None |
+
+The endpoint is the source of truth - read it for current fees.
+
+### Example
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl https://sms.esmsafrica.io/api/sender-ids/fees
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/api/sender-ids/fees");
+const { countries } = await res.json();
+for (const c of countries) {
+  if (c.fee_usd != null) console.log(c.country_code, `USD ${c.fee_usd}`);
+  else if (c.fee_table) console.log(c.country_code, c.fee_table);
+  else console.log(c.country_code, c.note);
+}
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import requests
+
+data = requests.get("https://sms.esmsafrica.io/api/sender-ids/fees", timeout=10).json()
+for c in data["countries"]:
+    if c["fee_usd"] is not None:
+        print(c["country_code"], "USD", c["fee_usd"])
+    elif c["fee_table"]:
+        print(c["country_code"], c["fee_table"])
+    else:
+        print(c["country_code"], c["note"])
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$data = json_decode(file_get_contents("https://sms.esmsafrica.io/api/sender-ids/fees"), true);
+foreach ($data["countries"] as $c) {
+    $fee = $c["fee_usd"] !== null ? "USD " . $c["fee_usd"] : ($c["note"] ?? "see fee table");
+    echo $c["country_code"] . " " . $fee . PHP_EOL;
+}
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+)
+
+type SenderFees struct {
+	Currency  string `json:"currency"`
+	Countries []struct {
+		CountryCode string     `json:"country_code"`
+		CountryName string     `json:"country_name"`
+		FeeUSD      *float64   `json:"fee_usd"`
+		FeeType     string     `json:"fee_type"`
+		Covers      *string    `json:"covers"`
+		FeeTable    [][]string `json:"fee_table"`
+		Note        *string    `json:"note"`
+	} `json:"countries"`
+}
+
+func main() {
+	res, err := http.Get("https://sms.esmsafrica.io/api/sender-ids/fees")
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	var f SenderFees
+	json.NewDecoder(res.Body).Decode(&f)
+	for _, c := range f.Countries {
+		if c.FeeUSD != nil {
+			fmt.Println(c.CountryCode, "USD", *c.FeeUSD)
+		}
+	}
+}
+```
+
+</Tab>
+</Tabs>
+
+## List your sender IDs
+
+```
+GET https://sms.esmsafrica.io/api/sender-ids
+```
+
+Needs a signed-in session or an API key (`Authorization: Bearer esms_live_your_api_key`).
+Returns your sender IDs, newest first.
+
+```json
+[
+  {
+    "id": 17,
+    "name": "AcmeFoods",
+    "countries": ["GH", "KE"],
+    "use_case": "Order updates",
+    "status": "approved",
+    "rejection_reason": null,
+    "fee_usd": 150,
+    "fee_charged_at": "2026-10-08T09:30:00+00:00",
+    "created_at": "2026-10-07T14:12:00+00:00"
+  }
+]
+```
+
+| Field | Description |
+|-------|-------------|
+| `status` | `pending`, `approved` or `rejected`. |
+| `fee_usd` | The Sender ID fee charged for this request (`0` when no fee applied). |
+| `fee_charged_at` | When the fee was charged (on approval), or `null`. |
+
+## Request a sender ID
+
+```
+POST https://sms.esmsafrica.io/api/sender-ids
+```
+
+```json
+{
+  "name": "AcmeFoods",
+  "countries": ["GH", "KE"],
+  "use_case": "Order updates"
 }
 ```
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `name` | string | ✅ | Sender name, 1–11 alphanumeric characters |
-| `countries` | array | ✅ | ISO 3166-1 alpha-2 country codes |
-| `use_case` | string | - | Description of how the sender ID will be used |
+| `name` | string | Yes | 1-11 characters. |
+| `countries` | string[] | Yes | ISO country codes to register in. |
+| `use_case` | string | No | What you will send. Helps the networks approve faster. |
 
-### Response `200`
+### Response
 
 ```json
 {
-  "id": 5,
-  "name": "MyApp",
-  "countries": ["UG", "KE", "NG"],
-  "use_case": "OTP delivery for fintech mobile app",
+  "id": 17,
+  "name": "AcmeFoods",
   "status": "pending",
-  "rejection_reason": null,
-  "created_at": "2026-05-02T10:00:00Z"
+  "estimated_fee_usd": 150,
+  "fee_countries": ["GH"]
 }
 ```
 
----
+`estimated_fee_usd` is the flat Sender ID fee that will be charged **when the request is
+approved** (one fee per country in `fee_countries`). Nothing is charged now, and nothing
+is charged if the request is rejected. Per-network fees (for example Kenya and Uganda)
+are confirmed by the team during onboarding.
 
-## GET /api/sender-ids
-
-List all your sender ID requests.
-
-**Auth:** Required
-
-### Response `200`
-
-```json
-[
-  {
-    "id": 5,
-    "name": "MyApp",
-    "countries": ["UG", "KE"],
-    "use_case": "OTP delivery",
-    "status": "approved",
-    "rejection_reason": null,
-    "created_at": "2026-05-02T10:00:00Z"
-  },
-  {
-    "id": 3,
-    "name": "TestBrand",
-    "countries": ["NG"],
-    "use_case": "Marketing",
-    "status": "rejected",
-    "rejection_reason": "Sender name too generic. Please use your brand name.",
-    "created_at": "2026-04-15T08:00:00Z"
-  }
-]
-```
-
-### Status values
-
-| `status` | Description |
-|----------|-------------|
-| `pending` | Under review |
-| `approved` | Approved - can be used in `sender_id` field |
-| `rejected` | Not approved. See `rejection_reason` |
+<Cards>
+  <Card title="Sender IDs guide" href="/docs/sender-ids/overview" description="How sender IDs work, approval and pricing." />
+  <Card title="Pricing" href="/docs/help/coverage" description="Per-country SMS rates." />
+</Cards>

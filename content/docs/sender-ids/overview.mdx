@@ -32,6 +32,55 @@ Sender ID requirements vary by country. Some require pre-registration with carri
 Using an unregistered sender ID in countries that require registration can result in message delivery failure or carrier blocking. Always request a sender ID before launching campaigns in new countries.
 </Callout>
 
+## Sender ID pricing
+
+Sender ID fees are charged from your wallet **only when a request is approved** -
+never when you submit it, and nothing is charged if it is rejected. The fee is shown
+upfront on the request form in the dashboard.
+
+### USD 150 one-time - covers all networks
+
+In these countries one flat fee per country registers your sender ID on every network:
+
+| Country | Fee |
+|---------|-----|
+| Cameroon (CM) | USD 150 one-time - covers all networks |
+| Djibouti (DJ) | USD 150 one-time - covers all networks |
+| Egypt (EG) | USD 150 one-time - covers all networks |
+| Ghana (GH) | USD 150 one-time - covers all networks |
+| Somalia (SO) | USD 150 one-time - covers all networks |
+| Tanzania (TZ) | USD 150 one-time - covers all networks |
+
+A request that covers several of these countries is charged USD 150 for each of them.
+
+### Kenya - per network
+
+Kenya Sender ID fees are a one-off setup per network - there is no monthly maintenance.
+
+| Network | Setup | Recurring |
+|---------|-------|-----------|
+| Bundled Safaricom & Airtel | KES 14,100 | None |
+| Safaricom only | KES 8,700 | None |
+| Airtel only | KES 8,700 | None |
+| Telkom | KES 4,500 | None |
+| Equitel | KES 9,000 | None |
+
+### Uganda - per network
+
+| Network | Setup | Recurring |
+|---------|-------|-----------|
+| MTN | None | UGX 250,000 / month |
+| Airtel | UGX 250,000 | None |
+
+### All other countries
+
+Sender ID fees for every other country are **confirmed during onboarding** - the team
+confirms the exact fees for the networks you need before anything is charged.
+
+Current fees for all 54 countries are on [esmsafrica.io/pricing](https://esmsafrica.io/pricing)
+and from the public [`GET /api/sender-ids/fees`](/docs/api-reference/sender-ids#get-sender-id-fees)
+endpoint.
+
 ## Default sender IDs
 
 Each route has a default sender ID configured. If you don't specify `sender_id` in your API request, the route's default is used. You can view the default for each country on the [Coverage & Pricing](/docs/help/coverage) page.
