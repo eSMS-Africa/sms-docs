@@ -36,7 +36,7 @@ country in the request that has a fee. Nothing is charged on rejection.
     {
       "country_code": "GH",
       "country_name": "Ghana",
-      "fee_usd": 150,
+      "fee_usd": 100,
       "fee_type": "one_time",
       "covers": "all_networks",
       "fee_table": null,
@@ -60,11 +60,11 @@ country in the request that has a fee. Nothing is charged on rejection.
     {
       "country_code": "NG",
       "country_name": "Nigeria",
-      "fee_usd": null,
-      "fee_type": "on_request",
-      "covers": null,
+      "fee_usd": 100,
+      "fee_type": "one_time",
+      "covers": "all_networks",
       "fee_table": null,
-      "note": "Confirmed during onboarding"
+      "note": null
     }
   ]
 }
@@ -74,7 +74,7 @@ country in the request that has a fee. Nothing is charged on rejection.
 |-------|------|-------------|
 | `country_code` | string | ISO 3166-1 alpha-2 code. |
 | `country_name` | string | Display name. |
-| `fee_usd` | number \| null | Flat fee in USD. `150` for flat-fee countries; `null` when the country uses a per-network fee table or the fee is confirmed at onboarding. |
+| `fee_usd` | number \| null | Flat fee in USD. `100` for flat-fee countries (every country except Kenya and Uganda); `null` when the country uses a per-network fee table or the fee is confirmed at onboarding. |
 | `fee_type` | string | `one_time` - a single flat fee for the country. `on_request` - fees are confirmed during onboarding. Countries with a `fee_table` may use another value, so check `fee_table` first. |
 | `covers` | string \| null | `all_networks` when one fee registers the sender ID on every network in the country. |
 | `fee_table` | array \| null | Per-network fees as rows of `[network, setup, recurring]`, in local currency. `null` when not applicable. |
@@ -84,10 +84,9 @@ country in the request that has a fee. Nothing is charged on rejection.
 
 | Countries | Fee |
 |-----------|-----|
-| Cameroon, Djibouti, Egypt, Ghana, Somalia, Tanzania | **USD 150 one-time** per country - covers registration on all networks |
+| All African countries except Kenya and Uganda | **USD 100 one-time** per country - covers registration on all networks |
 | Kenya | Per-network table (one-off setup, no monthly maintenance) - see below |
 | Uganda | Per-network table - see below |
-| All other countries | Confirmed during onboarding |
 
 **Kenya**
 
@@ -220,7 +219,7 @@ Returns your sender IDs, newest first.
     "use_case": "Order updates",
     "status": "approved",
     "rejection_reason": null,
-    "fee_usd": 150,
+    "fee_usd": 100,
     "fee_charged_at": "2026-10-08T09:30:00+00:00",
     "created_at": "2026-10-07T14:12:00+00:00"
   }
@@ -260,7 +259,7 @@ POST https://sms.esmsafrica.io/api/sender-ids
   "id": 17,
   "name": "AcmeFoods",
   "status": "pending",
-  "estimated_fee_usd": 150,
+  "estimated_fee_usd": 100,
   "fee_countries": ["GH"]
 }
 ```

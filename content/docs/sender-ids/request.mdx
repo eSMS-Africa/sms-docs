@@ -46,15 +46,14 @@ Response:
 }
 ```
 
-`estimated_fee_usd` is the flat Sender ID fee charged when the request is approved (USD 150 per
+`estimated_fee_usd` is the flat Sender ID fee charged when the request is approved (USD 100 per
 flat-fee country listed in `fee_countries`). Nothing is charged now or on rejection.
 
 ## Fees
 
-Sender ID fees are charged from your wallet **only when the request is approved**. Cameroon,
-Djibouti, Egypt, Ghana, Somalia and Tanzania are **USD 150 one-time per country, covering all
-networks**; Kenya and Uganda have per-network fees; all other countries are confirmed during
-onboarding. See [Sender ID pricing](/docs/sender-ids/overview#sender-id-pricing) and
+Sender ID fees are charged from your wallet **only when the request is approved**. Every African
+country except Kenya and Uganda is **USD 100 one-time per country, covering all networks**;
+Kenya and Uganda have per-network fees. See [Sender ID pricing](/docs/sender-ids/overview#sender-id-pricing) and
 [`GET /api/sender-ids/fees`](/docs/api-reference/sender-ids#get-sender-id-fees).
 
 ## Status flow
