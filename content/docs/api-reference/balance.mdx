@@ -14,9 +14,12 @@ Get your current wallet balance.
 ```json
 {
   "balance": 5000.50,
-  "currency": "USD"
+  "currency": "USD",
+  "sms_estimate": 4166
 }
 ```
+
+`sms_estimate` is roughly how many single-segment messages the balance covers at your typical route price.
 
 ---
 
@@ -54,7 +57,7 @@ List your transaction history.
       "amount": 100.00,
       "balance_after": 5000.50,
       "currency": "USD",
-      "description": "Top up via Flutterwave",
+      "description": "Wallet top-up",
       "batch_id": null,
       "created_at": "2026-05-01T09:00:00Z"
     }
@@ -69,11 +72,12 @@ List your transaction history.
 
 | `type` | Description |
 |--------|-------------|
-| `credit` | Flutterwave or bank top-up |
-| `sms_charge` | Charge for a sent message |
+| `credit` | Wallet top-up |
+| `sms_charge` | Charge for a sent message (or bulk batch) |
+| `sms_refund` | Automatic refund for a message the gateway rejected |
+| `sender_id_fee` / `sender_id_prepaid` | Sender ID registration fee |
 | `manual_credit` | Credit applied by support team |
 | `manual_debit` | Deduction applied by support team |
-| `refund` | Refund for failed delivery |
 
 Amounts are **negative for charges** and **positive for credits**.
 
@@ -92,8 +96,8 @@ No request body required.
 ```json
 {
   "checkout_url": "https://auth.esmsafrica.io/payments/initiate",
-  "message": "Redirecting to payment portal"
+  "message": "..."
 }
 ```
 
-Redirect the user to `checkout_url` to complete payment via Flutterwave. After payment, the credit is applied automatically and the user is redirected back to the portal.
+`checkout_url` points at the eSMS Africa payment service. The simplest way to top up is to send the user to [sms.esmsafrica.io/payment](https://sms.esmsafrica.io/payment) (card or mobile money). After payment, the credit is applied to the wallet automatically.

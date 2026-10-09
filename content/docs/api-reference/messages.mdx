@@ -27,7 +27,10 @@ Send a single SMS message.
 | `sender_id` | string | - | Approved sender ID. Defaults to route default |
 | `route` | string | - | Route code e.g. `ESMS_UG`. Auto-detected if omitted |
 | `schedule_mode` | string | - | `"now"` (default) or `"scheduled"` |
-| `scheduled_at` | string | If scheduled | ISO 8601 UTC datetime, at least 5 minutes in the future |
+| `scheduled_at` | string | If scheduled | ISO 8601 datetime with timezone, 5 minutes to 7 days in the future |
+| `international` | boolean | - | Bill the international-delivery rate (USD) for this send. Default `false` |
+
+Send an `Idempotency-Key: <unique-string>` header to make retries safe: a repeat request with the same key returns the original result (with `"idempotent_replay": true`) instead of charging and sending again.
 
 ### Response `200`
 
@@ -36,6 +39,9 @@ Send a single SMS message.
   "id": "msg-a1b2c3d4",
   "status": "submitted",
   "segments": 1,
+  "encoding": "GSM7",
+  "recipients": 1,
+  "price_per_sms": 35.00,
   "cost": 1.2022,
   "cost_currency": "KES",
   "route_cost": 35.00,
@@ -55,8 +61,13 @@ When `schedule_mode` is `"scheduled"`, status will be `"scheduled"` and `schedul
 | 400 | Phone cannot be parsed or is missing country code |
 | 400 | No active route for this country |
 | 400 | `scheduled_at` missing, less than 5 minutes in the future, or more than 7 days out |
+| 402 | Wallet balance too low (`insufficient_balance`, with `required` and `available`) |
 | 403 | Sender ID not found, not approved, or not approved for this country |
-| 422 | Wallet balance too low |
+| 403 | Recipient has opted out (`recipient_opted_out`) |
+| 409 | Duplicate message within 5 minutes (only when duplicate protection is on) |
+| 413 | Message longer than the segment cap (`message_too_long`) |
+| 422 | Request body failed validation (missing `to` / `text`) |
+| 429 | Rate limit exceeded |
 
 ---
 
@@ -75,6 +86,8 @@ Calculate cost of a bulk send before committing.
   "sender_id": "MyApp"
 }
 ```
+
+Instead of `contact_list_ids` you can pass inline `recipients`: `[{"to": "+256712345678", "name": "Amina", "vars": {"code": "X1"}}]`. Set `"international": true` to preview the international-delivery rate.
 
 ### Response `200`
 
@@ -102,9 +115,12 @@ Calculate cost of a bulk send before committing.
     }
   ],
   "unroutable_count": 1,
-  "unroutable": ["+000000000"]
+  "unroutable": ["+000000000"],
+  "suppressed_count": 0
 }
 ```
+
+`suppressed_count` is the number of opted-out (STOP) recipients that were removed.
 
 ---
 
@@ -129,13 +145,15 @@ Send a bulk SMS campaign.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `contact_list_ids` | array | ✅ | List IDs to send to |
+| `contact_list_ids` | array | ✅ (or `recipients`) | List IDs to send to |
+| `recipients` | array | ✅ (or `contact_list_ids`) | Inline recipients: `{"to", "name", "vars"}`. Not allowed with `scheduled` |
 | `text` | string | ✅ | Message text with optional `{{variables}}` |
 | `sender_id` | string | - | Approved sender ID |
 | `route` | string | - | Force a specific route |
 | `schedule_mode` | string | - | `now` (default), `scheduled`, `drip` |
 | `scheduled_at` | string | If scheduled | ISO 8601 UTC datetime |
 | `drip_rate` | integer | If drip | Messages per minute |
+| `international` | boolean | - | Bill the international-delivery rate (USD). Cannot be combined with `scheduled` |
 
 ### Response `200`
 
@@ -147,6 +165,8 @@ Send a bulk SMS campaign.
   "status": "sending"
 }
 ```
+
+`status` is `sending` (immediate), `scheduled` or `dripping`. Track progress with `GET /api/messages/batch/{batch_id}`.
 
 ---
 
@@ -162,7 +182,11 @@ List messages with pagination and optional status filter.
 |-------|---------|-------------|
 | `page` | `0` | 0-indexed page |
 | `limit` | `20` | 1–100 |
-| `status` | - | Filter: `queued`, `submitted`, `scheduled`, `dripping`, `delivered`, `failed` |
+| `status` | - | Filter: `queued`, `scheduled`, `submitted`, `sent`, `delivered`, `retrying`, `failed` |
+| `environment` | `live` | `live`, `test` or `all` (test keys always see test traffic) |
+| `to` | - | Filter by recipient phone (E.164) |
+| `batch_id` | - | Only messages from this bulk batch |
+| `date_from` / `date_to` | - | ISO 8601 bounds on `created_at` |
 
 ### Response `200`
 
@@ -177,6 +201,8 @@ List messages with pagination and optional status filter.
       "route": "ESMS_UG",
       "country": "UG",
       "segments": 1,
+      "encoding": "GSM7",
+      "environment": "live",
       "cost": 35.00,
       "currency": "UGX",
       "status": "delivered",
@@ -212,9 +238,14 @@ Get full message details including the event timeline.
   "country": "UG",
   "segments": 1,
   "cost": 35.00,
-  "currency": "UGX",
   "status": "delivered",
+  "error_code": null,
+  "error_message": null,
+  "retry_count": 0,
+  "created_at": "2026-05-02T12:00:00Z",
+  "submitted_at": "2026-05-02T12:00:01Z",
   "delivered_at": "2026-05-02T12:00:05Z",
+  "failed_at": null,
   "timeline": [
     {
       "event": "accepted",
@@ -248,14 +279,14 @@ Retry a failed message.
 
 **Auth:** Required
 
-Only works on messages with `status: "failed"`. Returns `409` if the message is not in a retryable state.
+Works on messages whose status is `failed`; any in-flight or delivered message returns `400`. A message whose charge was refunded (or never charged) is billed again before it is re-sent; `402` if the balance is too low. Test (`esms_test_`) messages cannot be retried.
 
 ### Response `200`
 
 ```json
 {
   "id": "msg-a1b2c3d4",
-  "status": "retrying",
+  "status": "submitted",
   "retry_count": 1
 }
 ```
@@ -279,6 +310,7 @@ Dashboard KPIs - counts for today vs. yesterday, delivery rate, balance.
   "failed_delta": -1,
   "balance": 5000.50,
   "currency": "USD",
+  "sms_estimate": 4166,
   "period_total": 5000,
   "period_days": 14
 }

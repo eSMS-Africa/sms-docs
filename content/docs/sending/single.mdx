@@ -26,7 +26,8 @@ POST /api/messages/send
 | `sender_id`     | string | No           | Approved sender ID. Defaults to route's default sender                  |
 | `route`         | string | No           | Route code (e.g. `ESMS_UG`). Auto-detected from phone number if omitted |
 | `schedule_mode` | string | No           | `"now"` (default) or `"scheduled"`                                      |
-| `scheduled_at`  | string | If scheduled | ISO 8601 UTC datetime, at least 5 minutes in the future                 |
+| `scheduled_at`  | string | If scheduled | ISO 8601 UTC datetime, 5 minutes to 7 days in the future                |
+| `international` | boolean | No          | Bill the international-delivery rate (USD). Default `false`             |
 
 <Callout type="info">
   **E.164 format** means: `+` followed by country code, then subscriber number.
@@ -45,6 +46,9 @@ POST /api/messages/send
   "id": "msg-a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "status": "submitted",
   "segments": 1,
+  "encoding": "GSM7",
+  "recipients": 1,
+  "price_per_sms": 35.0,
   "cost": 1.2022,
   "cost_currency": "KES",
   "route_cost": 35.0,
@@ -186,8 +190,13 @@ Scheduled messages appear in the **Logs** section of the portal with a `schedule
 | 400    | No active route for the destination country                                    |
 | 400    | `scheduled_at` is missing or less than 5 minutes in the future                 |
 | 401    | Missing or invalid API key                                                     |
+| 402    | Wallet balance too low to send this message (`insufficient_balance`)            |
 | 403    | Sender ID not found, not approved, or not approved for the destination country |
-| 422    | Wallet balance too low to send this message                                    |
+| 403    | Recipient has opted out (`recipient_opted_out`)                                |
+| 409    | Identical message to the same number within 5 minutes (duplicate protection on) |
+| 413    | Message longer than the maximum segment count (`message_too_long`)             |
+| 422    | Request body failed validation (e.g. missing `to` or `text`)                   |
+| 429    | Rate limit exceeded                                                            |
 
 ```json title="403 - sender ID not approved"
 {
@@ -201,13 +210,21 @@ Scheduled messages appear in the **Logs** section of the portal with a `schedule
 }
 ```
 
-```json title="422 - insufficient balance"
+```json title="402 - insufficient balance"
 {
   "detail": {
     "code": "insufficient_balance",
-    "message": "Balance USD 0.50 < estimated cost USD 1.20",
+    "message": "Insufficient balance. Required USD 1.2, available USD 0.5",
+    "required": 1.2,
+    "available": 0.5,
     "balance": 0.5,
-    "cost": 1.2
+    "cost": 1.2,
+    "segments": 1,
+    "encoding": "GSM7",
+    "route": "ESMS_UG",
+    "currency": "USD"
   }
 }
 ```
+
+Every error body also carries an `error` object (`code`, `message`, `request_id`) - see [Errors](/docs/help/errors).

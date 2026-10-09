@@ -9,6 +9,8 @@ description: Complete reference for the eSMS Africa REST API.
 https://sms.esmsafrica.io/api
 ```
 
+Every endpoint is also served under the versioned prefix `https://sms.esmsafrica.io/v1` (for example `/v1/messages/send`). Both behave identically.
+
 ## Authentication
 
 All endpoints require authentication. Pass your API key in the `Authorization` header:
@@ -27,26 +29,19 @@ All responses are JSON. Successful responses return `2xx` with the response body
 
 ```json
 {
+  "error": {
+    "code": "insufficient_balance",
+    "message": "Insufficient balance. Required USD 1.2, available USD 0.5",
+    "request_id": "3f9a1c2b4d5e6f708192a3b4c5d6e7f8"
+  },
   "detail": {
     "code": "insufficient_balance",
-    "message": "Insufficient balance. Required: 35 UGX, available: 10 UGX"
+    "message": "Insufficient balance. Required USD 1.2, available USD 0.5"
   }
 }
 ```
 
-Or for validation errors:
-
-```json
-{
-  "detail": [
-    {
-      "loc": ["body", "to"],
-      "msg": "field required",
-      "type": "value_error.missing"
-    }
-  ]
-}
-```
+Branch on `error.code`; `detail` is kept for backward compatibility (for `422` validation errors it is FastAPI's array of field errors). See [Error Codes](/docs/help/errors).
 
 ## Endpoints
 
@@ -55,6 +50,10 @@ Or for validation errors:
 | Method | Path | Description |
 |--------|------|-------------|
 | `POST` | `/messages/send` | Send a single SMS |
+| `POST` | `/messages/rate` | Price a message before sending |
+| `POST` | `/messages/validate` | Validate phone numbers |
+| `GET` | `/messages/status?ids=` | Status of many messages |
+| `GET` | `/messages/batch/{batch_id}` | Bulk batch status |
 | `POST` | `/messages/bulk-precheck` | Pre-check bulk send cost |
 | `POST` | `/messages/send-bulk` | Send bulk SMS |
 | `GET` | `/messages` | List messages |
@@ -90,6 +89,10 @@ Or for validation errors:
 | `GET` | `/contact-lists/{id}` | Get a list |
 | `GET` | `/contact-lists/{id}/contacts` | Browse contacts |
 | `DELETE` | `/contact-lists/{id}` | Delete a list |
+| `POST` | `/contact-lists/{id}/contacts` | Add a contact |
+| `PATCH` | `/contacts/{id}` | Update a contact |
+| `DELETE` | `/contacts/{id}` | Delete a contact |
+| `GET` | `/contact-lists/{id}/export` | Export a list as CSV |
 
 ### Webhooks
 
@@ -97,7 +100,10 @@ Or for validation errors:
 |--------|------|-------------|
 | `GET` | `/webhooks` | Get webhook config |
 | `PUT` | `/webhooks` | Update webhook config |
+| `POST` | `/webhooks/test` | Send sample signed events |
 | `POST` | `/webhooks/rotate-secret` | Rotate signing secret |
+| `GET` | `/webhook-deliveries` | Webhook delivery log |
+| `POST` | `/webhook-deliveries/{id}/replay` | Re-send a webhook |
 
 ### Sender IDs
 
@@ -105,14 +111,15 @@ Or for validation errors:
 |--------|------|-------------|
 | `POST` | `/sender-ids` | Request a sender ID |
 | `GET` | `/sender-ids` | List your sender IDs |
+| `GET` | `/sender-ids/fees` | Registration fees by country (no auth) |
 
 ### API Keys
 
 | Method | Path | Description |
 |--------|------|-------------|
-| `POST` | `/api-keys` | Create an API key |
+| `POST` | `/api-keys` | Create an API key (dashboard session only) |
 | `GET` | `/api-keys` | List your API keys |
-| `DELETE` | `/api-keys/{id}` | Revoke an API key |
+| `DELETE` | `/api-keys/{id}` | Revoke an API key (dashboard session only) |
 
 ### Account
 
@@ -137,4 +144,4 @@ Responses include `total`, `page`, and `limit`.
 
 ## Rate limiting
 
-Requests are rate-limited per API key. If you exceed the limit you receive `429 Too Many Requests` with a `Retry-After` header.
+Requests are rate-limited per API key (single send `20/second`, bulk send `10/minute`). If you exceed the limit you receive `429 Too Many Requests` with `error.code: "rate_limited"`; back off and retry.

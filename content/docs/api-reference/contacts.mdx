@@ -90,7 +90,7 @@ Browse contacts in a list.
 | Param | Default | Description |
 |-------|---------|-------------|
 | `page` | `0` | 0-indexed page |
-| `limit` | `50` | 1–100 |
+| `limit` | `20` | 1–100 |
 
 ### Response `200`
 
@@ -119,4 +119,36 @@ Delete a contact list and all its contacts.
 
 **Auth:** Required
 
-Returns `204 No Content` on success. This operation is irreversible.
+Returns `200` with `{"status": "deleted"}`. This operation is irreversible.
+
+---
+
+## POST /api/contact-lists/:list_id/contacts
+
+Add one contact to a list.
+
+**Auth:** Required
+
+```json
+{ "phone": "+234801234567", "name": "Alice Obi", "data": { "tier": "premium" } }
+```
+
+Returns `201` with the created contact (`id`, `phone`, `name`, `data`). `409` if the number is already in the list.
+
+---
+
+## PATCH /api/contacts/:contact_id
+
+Update a contact. Same body as above; `phone` is required. Returns the updated contact.
+
+---
+
+## DELETE /api/contacts/:contact_id
+
+Remove a single contact. Returns `204 No Content`.
+
+---
+
+## GET /api/contact-lists/:list_id/export
+
+Download every contact in the list as CSV (`phone`, `name`, plus any custom columns).

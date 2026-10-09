@@ -19,7 +19,7 @@ PUT /api/webhooks
 }
 ```
 
-The platform will send a `POST` request to your `dlr_url` for every delivery status update.
+The platform sends a `POST` request to your `dlr_url` once per message, when it reaches a final status (`delivered` or `failed`).
 
 ## Webhook payload
 
@@ -31,6 +31,9 @@ The platform will send a `POST` request to your `dlr_url` for every delivery sta
   "phone": "+256712345678",
   "sender_id": "eSMSAfrica",
   "segments": 1,
+  "encoding": "GSM7",
+  "environment": "live",
+  "livemode": true,
   "cost": 35.00,
   "error_code": null,
   "retry_count": 0,
@@ -47,6 +50,8 @@ The platform will send a `POST` request to your `dlr_url` for every delivery sta
 | `phone` | Recipient phone in E.164 format |
 | `sender_id` | Sender ID used for this message |
 | `segments` | Number of SMS segments sent |
+| `encoding` | `GSM7` or `UCS2` |
+| `environment` / `livemode` | `live` / `true` for real traffic, `test` / `false` for sandbox |
 | `cost` | Cost charged for this message |
 | `error_code` | Carrier error code, if failed |
 | `retry_count` | Number of retry attempts made |
@@ -138,17 +143,15 @@ After rotating, update your signing secret in all webhook handlers before the ol
 
 ## Responding to webhooks
 
-Your endpoint must return `HTTP 200` within **15 seconds**. If it times out or returns a non-2xx status, the platform will retry with exponential backoff.
+Your endpoint should return a `2xx` status within **15 seconds**. If it times out or returns a `4xx`/`5xx`, the platform retries twice more:
 
-| Attempt | Delay |
-|---------|-------|
-| 1st retry | 10 seconds |
-| 2nd retry | 30 seconds |
-| 3rd retry | 90 seconds |
-| 4th retry | 4.5 minutes |
-| 5th retry | ~13 minutes |
+| Attempt | When |
+|---------|------|
+| 1st | Immediately when the message reaches `delivered` or `failed` |
+| 2nd | ~5 seconds later |
+| 3rd | ~15 seconds after that |
 
-After all retries are exhausted, the webhook delivery is abandoned for that event.
+After the third failed attempt the event is not retried automatically. Every attempt is logged - list them with `GET /api/webhook-deliveries` and re-send one with `POST /api/webhook-deliveries/{id}/replay`.
 
 ## Example webhook handler
 

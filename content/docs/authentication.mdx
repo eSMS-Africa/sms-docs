@@ -12,7 +12,7 @@ API keys are the recommended way to authenticate from your application, server, 
 
 ### Create an API key
 
-1. Log in to [auth.esmsafrica.io](https://auth.esmsafrica.io)
+1. Log in to the eSMS App at [sms.esmsafrica.io](https://sms.esmsafrica.io) (accounts are managed at [auth.esmsafrica.io](https://auth.esmsafrica.io))
 2. Go to **API Keys** in the sidebar
 3. Click **Create key**
 4. Choose a name and environment (`live` or `test`)
@@ -94,6 +94,7 @@ async function esmsRequest(path, options = {}) {
 | `send` | Send single and bulk SMS messages |
 | `query` | Read messages, balance, and delivery status |
 | `webhooks` | Create and manage webhook configurations |
+| `two_way` | Two-Way SMS services, inbound messages and replies |
 
 <Callout type="warn">
 Never expose live API keys in client-side code, mobile apps, or public repositories. Use environment variables or a secrets manager.
@@ -103,7 +104,7 @@ Never expose live API keys in client-side code, mobile apps, or public repositor
 
 | Environment | Key prefix | Behaviour |
 |-------------|-----------|-----------|
-| `test` | `esms_test_` | Uses test balance; no real SMS sent |
+| `test` | `esms_test_` | Simulated delivery; no real SMS sent and no charge |
 | `live` | `esms_live_` | Sends real messages; deducts live balance |
 
 Use `test` keys during development to avoid charges.

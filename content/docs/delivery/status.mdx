@@ -19,6 +19,7 @@ Every message goes through a series of status changes from the moment it is subm
 | `delivered` | Confirmed delivered to the recipient's handset |
 | `failed` | Delivery failed. See `error_code` for reason |
 | `retrying` | Failed; system is automatically retrying |
+| `scheduled` | Waiting for its scheduled send time |
 
 ## Check status of a single message
 
@@ -36,7 +37,6 @@ GET /api/messages/:message_id
   "country": "UG",
   "segments": 1,
   "cost": 35.00,
-  "currency": "UGX",
   "status": "delivered",
   "delivered_at": "2026-05-02T12:00:05Z",
   "timeline": [
@@ -75,7 +75,8 @@ GET /api/messages?page=0&limit=20&status=delivered
 |-------------|-------------|
 | `page` | 0-indexed page number (default `0`) |
 | `limit` | Results per page, 1–100 (default `20`) |
-| `status` | Filter by status: `queued`, `submitted`, `sent`, `delivered`, `failed` |
+| `status` | Filter by status: `queued`, `scheduled`, `submitted`, `sent`, `delivered`, `retrying`, `failed` |
+| `to`, `batch_id`, `date_from`, `date_to`, `environment` | Optional filters - see the [Messages API](/docs/api-reference/messages) |
 
 ## Manual retry
 
@@ -85,17 +86,17 @@ If a message has `status: "failed"`, you can manually retry it:
 POST /api/messages/:message_id/retry
 ```
 
-The retry is dispatched as a **new send** - the response contains a fresh message ID. The original message's `retry_count` is incremented.
+The message is re-sent and keeps its history; the response carries the new gateway message ID (use it for later lookups) and the incremented `retry_count`. If the original charge was refunded, the retry is billed again.
 
 ```json title="Response 200"
 {
   "id": "9237c404-d73f-4fa6-813b-ab25bb8605d0",
-  "status": "failed",
+  "status": "submitted",
   "retry_count": 1
 }
 ```
 
-The system automatically retries failed messages up to **2 times** before marking them permanently failed. Manual retry is available on top of that.
+Messages that fail with a temporary carrier error are retried automatically before being marked failed. Manual retry is available on top of that.
 
 ## Real-time updates
 

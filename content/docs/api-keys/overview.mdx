@@ -5,6 +5,8 @@ description: Create and manage API keys for programmatic access to eSMS Africa.
 
 ## Create a key
 
+Create keys in the dashboard at [sms.esmsafrica.io/api-keys](https://sms.esmsafrica.io/api-keys). The endpoint below only accepts a dashboard session - calling it with an API key returns `403` (`portal_only`).
+
 ```
 POST /api/api-keys
 ```
@@ -20,8 +22,8 @@ POST /api/api-keys
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `name` | string | Yes | Human-readable label for this key |
-| `environment` | string | Yes | `live` or `test` |
-| `scopes` | string | Yes | Comma-separated list of scopes |
+| `environment` | string | No | `live` (default) or `test` |
+| `scopes` | string | No | Comma-separated list of scopes (default `send,query,webhooks`) |
 
 Response:
 
@@ -45,9 +47,10 @@ The full key is shown **once only** in the response. Copy it immediately and sto
 
 | Scope | Allowed operations |
 |-------|-------------------|
-| `send` | `POST /api/messages/send`, `POST /api/messages/send-bulk`, `POST /api/messages/bulk-precheck` |
-| `query` | `GET /api/messages`, `GET /api/messages/{id}`, `GET /api/balance`, `GET /api/balance/transactions`, `GET /api/routes` |
-| `webhooks` | `GET /api/webhooks`, `PUT /api/webhooks`, `POST /api/webhooks/rotate-secret` |
+| `send` | `POST /api/messages/send`, `POST /api/messages/send-bulk`, `POST /api/messages/{id}/retry`, `POST /api/verify/start`, `POST /api/verify/check`, campaign sends |
+| `query` | `GET /api/messages`, `GET /api/messages/{id}`, `GET /api/balance`, `GET /api/balance/transactions`, `GET /api/routes`, `POST /api/messages/bulk-precheck` |
+| `webhooks` | `GET /api/webhooks`, `PUT /api/webhooks`, `POST /api/webhooks/test`, `POST /api/webhooks/rotate-secret` |
+| `two_way` | Two-Way SMS short code services, inbound messages and replies |
 
 Request only the scopes your integration needs. A key with only `query` scope cannot send messages.
 
@@ -72,7 +75,7 @@ GET /api/api-keys
 ]
 ```
 
-The `prefix` shows the first 8 chars plus the last 4 - enough to identify the key without exposing it.
+The `prefix` shows the environment plus the last 4 characters (`esms_live_****o5p6`) - enough to identify the key without exposing it.
 
 ## Revoke a key
 
@@ -80,7 +83,7 @@ The `prefix` shows the first 8 chars plus the last 4 - enough to identify the ke
 DELETE /api/api-keys/{key_id}
 ```
 
-Revocation is immediate. Any in-flight requests using the key will fail.
+Returns `{"status": "revoked", "id": 12}`. Revocation is immediate. Dashboard session only, like key creation.
 
 ## Best practices
 

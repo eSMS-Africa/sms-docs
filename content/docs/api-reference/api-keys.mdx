@@ -7,7 +7,7 @@ description: Full reference for API key management endpoints.
 
 Create a new API key.
 
-**Auth:** Required (session)
+**Auth:** Dashboard session only. Calling this with an API key returns `403` (`portal_only`), so a leaked key can never mint new keys.
 
 ### Request body
 
@@ -22,8 +22,8 @@ Create a new API key.
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `name` | string | ✅ | Human-readable label |
-| `environment` | string | ✅ | `live` or `test` |
-| `scopes` | string | ✅ | Comma-separated: `send`, `query`, `webhooks` |
+| `environment` | string | - | `live` (default) or `test` |
+| `scopes` | string | - | Comma-separated subset of `send`, `query`, `webhooks`, `two_way`. Default `send,query,webhooks` |
 
 ### Response `200`
 
@@ -47,7 +47,7 @@ The `key` field is only present on creation. It is **never returned again**.
 
 List your API keys (keys are masked).
 
-**Auth:** Required (session)
+**Auth:** Required
 
 ### Response `200`
 
@@ -72,6 +72,12 @@ List your API keys (keys are masked).
 
 Revoke an API key immediately.
 
-**Auth:** Required (session)
+**Auth:** Dashboard session only (`403 portal_only` with an API key).
 
-Returns `204 No Content`. The key stops working immediately after this call.
+### Response `200`
+
+```json
+{ "status": "revoked", "id": 12 }
+```
+
+The key stops working immediately after this call.

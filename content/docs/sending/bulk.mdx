@@ -93,13 +93,15 @@ POST /api/messages/send-bulk
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `contact_list_ids` | array | Yes | IDs of contact lists to send to |
+| `contact_list_ids` | array | Yes (or `recipients`) | IDs of contact lists to send to |
+| `recipients` | array | Yes (or `contact_list_ids`) | Inline recipients `[{"to": "+254...", "name": "Amina", "vars": {...}}]` - not allowed with `scheduled` |
 | `text` | string | Yes | Message text. Supports `{{variable}}` placeholders |
 | `sender_id` | string | No | Approved sender ID |
 | `route` | string | No | Force a specific route (overrides auto-detection) |
 | `schedule_mode` | string | No | `now` (default), `scheduled`, or `drip` |
-| `scheduled_at` | string | Required if scheduled | ISO 8601 datetime, e.g. `2026-06-01T09:00:00Z` |
-| `drip_rate` | integer | Required if drip | Messages per minute (e.g. `60`) |
+| `scheduled_at` | string | Required if scheduled | ISO 8601 datetime, 5 minutes to 7 days ahead, e.g. `2026-06-01T09:00:00Z` |
+| `drip_rate` | integer | Required if drip | Messages per minute, `1`-`5000` (e.g. `60`) |
+| `international` | boolean | No | Bill the international-delivery rate (USD); not with `scheduled` |
 
 Response:
 
@@ -133,8 +135,9 @@ Messages are held until `scheduled_at`, then dispatched.
 }
 ```
 
-- Minimum: 10 minutes in the future
-- Maximum: 90 days in the future
+- Minimum: 5 minutes in the future
+- Maximum: 7 days in the future
+- Only `contact_list_ids` (no inline `recipients`)
 - Stored securely until dispatch time
 
 ### Drip
