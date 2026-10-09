@@ -22,6 +22,10 @@ commercials and onboarding, see the [Two-Way SMS guide](/docs/two-way/overview).
 | `GET` | `/api/two-way/services/{id}/messages` | [List messages](#list-messages) |
 | `POST` | `/api/two-way/services/{id}/reply` | [Reply from the short code](#reply-from-the-short-code) |
 | `GET` | `/api/two-way/keywords/check` | [Check keyword availability](#check-keyword-availability) |
+| `GET` | `/api/two-way/countries` | [Countries you can request in](#list-countries) |
+| `POST` | `/api/two-way/kyc-documents` | [Upload a KYC document](#upload-a-kyc-document) |
+| `GET` | `/api/two-way/kyc-documents/{id}` | [Download one of your KYC documents](#upload-a-kyc-document) |
+| `POST` | `/api/two-way/services/{id}/test-webhook` | [Send a signed test webhook](#send-a-test-webhook) |
 
 Every path is also served under `/v1/two-way/...` (for example
 `GET https://sms.esmsafrica.io/v1/two-way/services`) - the two prefixes are identical.
@@ -37,16 +41,17 @@ Authorization: Bearer esms_live_your_api_key
 
 | Endpoints | API key scope |
 |-----------|---------------|
-| `GET /services`, `GET /services/{id}`, `GET /services/{id}/messages`, `GET /keywords/check` | `two_way` or `query` |
-| `POST /services`, `PATCH /services/{id}`, `POST /services/{id}/cancel` | `two_way` |
+| `GET /services`, `GET /services/{id}`, `GET /services/{id}/messages`, `GET /keywords/check`, `GET /countries` | `two_way` or `query` |
+| `POST /services`, `PATCH /services/{id}`, `POST /services/{id}/cancel`, `POST /kyc-documents`, `POST /services/{id}/test-webhook` | `two_way` |
 | `POST /services/{id}/reply` | `two_way` or `send` |
 
 New API keys get `send`, `query` and `webhooks` by default, so they can already read services
 and reply from a short code. To request or change services over the API, use a key that also
 has the `two_way` scope.
 
-A key without the required scope gets `403 insufficient_scope`. Requests on a
-suspended account get `403 account_suspended`.
+A key without the required scope gets `403 insufficient_scope`. Replies from a
+suspended account get `403 account_suspended`. Replies need a live key - an
+`esms_test_` key gets `400 test_key`.
 
 ## Get pricing
 
@@ -198,24 +203,50 @@ func main() {
 ```json
 {
   "id": 42,
-  "status": "active",
   "country_code": "NG",
+  "country_name": "Nigeria",
   "type": "shared",
   "keyword": "JOIN",
   "toll_free": false,
+  "status": "active",
   "number": "32811",
-  "use_case": "marketing",
+  "use_case": "Marketing sign-ups: customers text JOIN to get our weekly offers",
   "company_name": "Acme Foods Ltd",
+  "kyc_document_urls": [],
+  "kyc_documents": [{ "id": 7, "filename": "certificate.pdf", "url": "/api/two-way/kyc-documents/7" }],
   "webhook_url": "https://example.com/hooks/two-way",
+  "effective_webhook_url": "https://example.com/hooks/two-way",
+  "webhook_signing": {
+    "header": "X-Webhook-Signature",
+    "algorithm": "HMAC-SHA256",
+    "format": "sha256=<hex of raw body>",
+    "secret_hint": "whsec_...9f3a"
+  },
   "auto_reply_enabled": true,
   "auto_reply_text": "Thanks! You are on the Acme list. Reply STOP to opt out.",
   "forward_email": "support@acme.example",
-  "setup_fee_usd": 100,
-  "monthly_fee_usd": 50,
-  "inbound_price_usd": 0.0185,
-  "outbound_price_usd": 0.0185,
-  "next_billing_at": "2026-11-07T09:00:00+00:00",
-  "created_at": "2026-10-06T14:12:00+00:00"
+  "rejection_reason": null,
+  "suspend_reason": null,
+  "fees": {
+    "setup_fee_usd": 100,
+    "monthly_fee_usd": 50,
+    "inbound_price_usd": 0.0185,
+    "outbound_price_usd": 0.0185
+  },
+  "setup_charged": true,
+  "activated_at": "2026-10-07T09:00:00+00:00",
+  "next_billing_at": "2026-11-06T09:00:00+00:00",
+  "past_due_since": null,
+  "suspended_at": null,
+  "cancelled_at": null,
+  "created_at": "2026-10-06T14:12:00+00:00",
+  "timeline": [
+    { "key": "requested", "label": "Requested", "at": "2026-10-06T14:12:00+00:00", "state": "done" },
+    { "key": "review", "label": "Approved", "at": "2026-10-07T09:00:00+00:00", "state": "done" },
+    { "key": "live", "label": "Live", "at": "2026-10-07T09:00:00+00:00", "state": "done" },
+    { "key": "renewal", "label": "Next renewal", "at": "2026-11-06T09:00:00+00:00", "state": "upcoming" }
+  ],
+  "stats": { "inbound_total": 1280, "inbound_30d": 412, "unbilled": 0 }
 }
 ```
 
@@ -227,10 +258,18 @@ func main() {
 | `keyword` | Your keyword on a shared code (`null` for dedicated). |
 | `toll_free` | `true` for a toll free code - you pay for incoming and outgoing SMS; the end user pays nothing. |
 | `number` | The short code assigned to the service. `null` until approved. |
+| `kyc_document_urls` / `kyc_documents` | The KYC links you sent and the files you [uploaded](#upload-a-kyc-document). |
 | `webhook_url` | Where `message.inbound` events for this service are posted. When `null`, events go to your account `mo_url` from [Webhooks](/docs/delivery/webhooks). |
-| `auto_reply_enabled` / `auto_reply_text` | Automatic reply sent from the short code to every inbound message. |
+| `effective_webhook_url` | The URL events are actually posted to (`webhook_url`, else your account `mo_url`). |
+| `webhook_signing` | How events are signed; `secret_hint` is a masked hint of your signing secret. |
+| `auto_reply_enabled` / `auto_reply_text` | Automatic reply sent from the short code to every inbound message (at most one per sender per minute). |
 | `forward_email` | Optional address that receives a copy of each inbound message. |
-| `*_usd` | The prices that apply to this service. Per-SMS prices are the effective prices (the country's Basic SMS rate unless a custom two-way price is set). |
+| `rejection_reason` / `suspend_reason` | Why a request was not approved or a service was suspended. |
+| `fees` | The prices that apply to this service, in USD: `setup_fee_usd`, `monthly_fee_usd`, and the effective per-SMS `inbound_price_usd` / `outbound_price_usd` (the country's Basic SMS rate unless a custom two-way price is set). |
+| `setup_charged` | Whether the one-time setup fee has been charged. |
+| `next_billing_at` | When the next monthly fee is due (`null` unless active). |
+| `timeline` | Progress steps for display (`state`: `done`, `current`, `upcoming` or `failed`). |
+| `stats` | Inbound message counts: all time, last 30 days, and not billed (low balance). |
 
 ## List services
 
@@ -271,7 +310,7 @@ request is approved, and a rejected request costs nothing.
   "type": "shared",
   "keyword": "JOIN",
   "toll_free": false,
-  "use_case": "marketing",
+  "use_case": "Marketing sign-ups: customers text JOIN to get our weekly offers",
   "company_name": "Acme Foods Ltd",
   "kyc_document_urls": [
     "https://files.acme.example/kyc/certificate-of-incorporation.pdf",
@@ -285,17 +324,20 @@ request is approved, and a rejected request costs nothing.
 |-------|------|----------|-------------|
 | `country_code` | string | Yes | ISO alpha-2 code of a country where `is_available` is `true`. |
 | `type` | string | Yes | `dedicated` or `shared`. |
-| `keyword` | string | For `shared` | One word, letters and digits only. Check it first with [keyword availability](#check-keyword-availability). |
+| `keyword` | string | For `shared` | 2-20 letters or digits, no spaces (`STOP`, `START`, `HELP` and `INFO` are reserved). Check it first with [keyword availability](#check-keyword-availability). |
 | `toll_free` | boolean | No | Request a toll free code (default `false`). Only where `toll_free_available` is `true`. |
-| `use_case` | string | Yes | What the service is for, e.g. `survey`, `marketing`, `support`, with any detail you can add. |
+| `use_case` | string | Yes | What the service is for and sample messages (10-4000 characters), e.g. a survey, marketing sign-ups or a support line. |
 | `company_name` | string | Yes | Registered business name. |
-| `kyc_document_urls` | string[] | Yes | Links to your KYC documents (business registration, tax registration, director ID, authorisation letter). |
+| `kyc_document_urls` | string[] | One of these | Links (http/https) to your KYC documents (business registration, tax registration, director ID, authorisation letter). Up to 10. |
+| `kyc_document_ids` | integer[] | One of these | IDs returned by [Upload a KYC document](#upload-a-kyc-document). Up to 10. At least one link or upload is required. |
 | `webhook_url` | string | No | HTTPS endpoint for `message.inbound` events. Can be set later. |
 
 ### Response (201)
 
 The new [service object](#the-service-object) with `status: "pending"` and
-`number: null`.
+`number: null`. A request for a country that is not available returns
+`422 country_unavailable`; a keyword that is taken returns `409 keyword_unavailable`;
+a second identical pending request returns `409 duplicate_request`.
 
 ### Examples
 
@@ -311,7 +353,7 @@ curl -X POST https://sms.esmsafrica.io/api/two-way/services \
     "type": "shared",
     "keyword": "JOIN",
     "toll_free": false,
-    "use_case": "marketing",
+    "use_case": "Marketing sign-ups: customers text JOIN to get our weekly offers",
     "company_name": "Acme Foods Ltd",
     "kyc_document_urls": ["https://files.acme.example/kyc/certificate-of-incorporation.pdf"],
     "webhook_url": "https://example.com/hooks/two-way"
@@ -333,7 +375,7 @@ const res = await fetch("https://sms.esmsafrica.io/api/two-way/services", {
     type: "shared",
     keyword: "JOIN",
     toll_free: false,
-    use_case: "marketing",
+    use_case: "Marketing sign-ups: customers text JOIN to get our weekly offers",
     company_name: "Acme Foods Ltd",
     kyc_document_urls: ["https://files.acme.example/kyc/certificate-of-incorporation.pdf"],
     webhook_url: "https://example.com/hooks/two-way",
@@ -358,7 +400,7 @@ res = requests.post(
         "type": "shared",
         "keyword": "JOIN",
         "toll_free": False,
-        "use_case": "marketing",
+        "use_case": "Marketing sign-ups: customers text JOIN to get our weekly offers",
         "company_name": "Acme Foods Ltd",
         "kyc_document_urls": ["https://files.acme.example/kyc/certificate-of-incorporation.pdf"],
         "webhook_url": "https://example.com/hooks/two-way",
@@ -388,7 +430,7 @@ curl_setopt_array($ch, [
         "type" => "shared",
         "keyword" => "JOIN",
         "toll_free" => false,
-        "use_case" => "marketing",
+        "use_case" => "Marketing sign-ups: customers text JOIN to get our weekly offers",
         "company_name" => "Acme Foods Ltd",
         "kyc_document_urls" => ["https://files.acme.example/kyc/certificate-of-incorporation.pdf"],
         "webhook_url" => "https://example.com/hooks/two-way",
@@ -418,7 +460,7 @@ func main() {
 		"type":              "shared",
 		"keyword":           "JOIN",
 		"toll_free":         false,
-		"use_case":          "marketing",
+		"use_case":          "Marketing sign-ups: customers text JOIN to get our weekly offers",
 		"company_name":      "Acme Foods Ltd",
 		"kyc_document_urls": []string{"https://files.acme.example/kyc/certificate-of-incorporation.pdf"},
 		"webhook_url":       "https://example.com/hooks/two-way",
@@ -505,12 +547,14 @@ GET https://sms.esmsafrica.io/api/two-way/services/{id}/messages
 ```
 
 Scope: `two_way` or `query`. Inbound messages received on the service and the replies you sent from
-it, newest first. Every inbound message is stored - including ones received while the
+it: the most recent `limit` messages, returned oldest first (conversation order). `total`
+is the full count. Every inbound message is stored - including ones received while the
 service was `suspended` or your balance was too low (`billed: false`).
 
 | Parameter | Type | Description |
 |-----------|------|-------------|
-| `limit` | integer | Max messages to return. |
+| `limit` | integer | Max messages to return (1-1000, default 200). |
+| `phone` | string | Only the conversation with this number (international format). |
 
 ### Response
 
@@ -540,7 +584,7 @@ service was `suspended` or your balance was too low (`billed: false`).
       "keyword": null,
       "phone": "+2348031234567",
       "status": "delivered",
-      "billed": null,
+      "billed": true,
       "cost": 0.0185,
       "auto_reply": false,
       "created_at": "2026-10-07T10:15:04+00:00"
@@ -654,7 +698,7 @@ are not messaged.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `to` | string | Yes | Recipient in international format. Must be in the service's country. |
+| `to` | string | Yes | Recipient in international format. Must be a number in the service's country (`400 invalid_recipient_country` otherwise). |
 | `text` | string | Yes | Message content. 160 GSM-7 / 70 Unicode characters per segment. |
 
 ### Response
@@ -669,6 +713,10 @@ are not messaged.
   "balance_after": 41.27
 }
 ```
+
+`cost` and `balance_after` are in your wallet currency (`currency`). If the network
+rejects the message, `status` is `failed`, `cost` is `0` and the charge is refunded.
+The reply also appears in [List messages](#list-messages).
 
 Delivery reports for replies arrive on your `dlr_url` like any other message - see
 [Webhooks](/docs/delivery/webhooks).
@@ -796,6 +844,83 @@ curl "https://sms.esmsafrica.io/api/two-way/keywords/check?number=32811&keyword=
   -H "Authorization: Bearer esms_live_your_api_key"
 ```
 
+## List countries
+
+```
+GET https://sms.esmsafrica.io/api/two-way/countries
+```
+
+Scope: `two_way` or `query`. The [pricing](#get-pricing) rows plus what you need to request a
+service in each country.
+
+```json
+{
+  "countries": [
+    {
+      "country_code": "NG",
+      "country_name": "Nigeria",
+      "setup_fee_usd": 100,
+      "monthly_fee_usd": 50,
+      "inbound_price_usd": 0.0185,
+      "outbound_price_usd": 0.0185,
+      "is_available": true,
+      "kyc_requirements": "Certificate of incorporation or business registration; tax certificate; ...",
+      "notes": null,
+      "shared_number_available": true,
+      "dedicated_number_available": false
+    }
+  ]
+}
+```
+
+`shared_number_available` / `dedicated_number_available` say whether a shared code (for a
+keyword) or a free dedicated code is in stock right now. You can still request when it is
+`false` - the team provisions one during review.
+
+## Upload a KYC document
+
+```
+POST https://sms.esmsafrica.io/api/two-way/kyc-documents
+```
+
+Scope: `two_way`. `multipart/form-data` with one `file` field - PDF, PNG, JPG or WEBP, up to
+5 MB. Pass the returned `id` in `kyc_document_ids` when you [request a service](#request-a-service).
+
+```bash
+curl -X POST https://sms.esmsafrica.io/api/two-way/kyc-documents \
+  -H "Authorization: Bearer esms_live_your_api_key" \
+  -F "file=@certificate-of-incorporation.pdf"
+```
+
+```json
+{
+  "id": 7,
+  "filename": "certificate-of-incorporation.pdf",
+  "content_type": "application/pdf",
+  "size": 182044,
+  "url": "/api/two-way/kyc-documents/7"
+}
+```
+
+`GET /api/two-way/kyc-documents/{id}` downloads one of your documents.
+
+## Send a test webhook
+
+```
+POST https://sms.esmsafrica.io/api/two-way/services/{id}/test-webhook
+```
+
+Scope: `two_way`. Posts a signed sample `message.inbound` event (with `"test": true`) to the
+service's effective webhook URL so you can check your endpoint and signature verification.
+
+```json
+{ "ok": true, "status": 200, "url": "https://example.com/hooks/two-way" }
+```
+
+On failure `ok` is `false` and `error` explains why (for example a non-2xx status or an
+unreachable URL). With no service webhook and no account `mo_url` it returns
+`400 no_webhook`.
+
 ## Inbound webhook
 
 When a user texts your short code, eSMS posts a `message.inbound` event to the
@@ -810,8 +935,9 @@ that identifies the service the message arrived on.
   "from": "+2348031234567",
   "to": "32811",
   "text": "JOIN promo",
-  "keyword": null,
+  "keyword": "JOIN",
   "opt_out": false,
+  "received_at": "2026-10-07T10:15:02+00:00",
   "two_way": {
     "service_id": 42,
     "number": "32811",
@@ -828,7 +954,9 @@ that identifies the service the message arrived on.
 | `from` | The sender's phone number in international format. |
 | `to` | The short code that was texted. |
 | `text` | The full message text. |
-| `keyword` / `opt_out` | Set when the message is a STOP/START keyword - see [Opt-outs](https://docs.esmsafrica.io/docs/api-reference/sms/opt-outs). |
+| `keyword` | The service keyword the message matched on a shared code (`null` on a dedicated code). |
+| `opt_out` | `true` when the sender opted out (`STOP`, or `JOIN STOP` on a shared code) - they are added to your [opt-out list](https://docs.esmsafrica.io/docs/api-reference/sms/opt-outs). `START` opts them back in. |
+| `received_at` | When the message reached the network (ISO 8601, UTC). |
 | `two_way.service_id` | Your service ID - use it in `/services/{id}/reply`. |
 | `two_way.number` | The short code of the service. |
 | `two_way.keyword` | The matched keyword on a shared code (`null` on a dedicated code). |
@@ -1036,8 +1164,8 @@ Errors use the standard [error envelope](/docs/help/errors):
 ```json
 {
   "error": {
-    "code": "conflict",
-    "message": "Keyword JOIN is already taken on 32811",
+    "code": "keyword_unavailable",
+    "message": "Already taken on every shared short code in this country",
     "request_id": "3f9a1c2b4d5e6f708192a3b4c5d6e7f8"
   }
 }
@@ -1045,15 +1173,24 @@ Errors use the standard [error envelope](/docs/help/errors):
 
 | HTTP | `code` | When it happens |
 |------|--------|-----------------|
-| `400` | `bad_request` | Unknown or unavailable country, missing `keyword` on a shared request, toll free not offered, invalid number. |
+| `400` | `invalid_phone` | The reply `to` is not a valid international number. |
+| `400` | `invalid_recipient_country` | The reply `to` is not in the short code's country. |
+| `400` | `test_key` | Replies need a live (`esms_live_`) key. |
 | `401` | `unauthorized` | Missing or invalid API key or session. |
 | `402` | `insufficient_balance` | The wallet cannot cover a reply (`required`, `available` in `details`). |
 | `403` | `insufficient_scope` | The API key lacks the scope this endpoint needs (`two_way`, or `query`/`send` where listed). |
 | `403` | `account_suspended` | The account is suspended. |
 | `403` | `recipient_opted_out` | The reply recipient is on your STOP list. |
-| `404` | `not_found` | The service does not exist or is not yours. |
-| `409` | `conflict` | The keyword is taken on that number, or the service cannot change from its current status (for example replying on a service that is not `active`). |
-| `422` | `validation_error` | The request body failed validation (`details.errors` lists the fields). |
+| `404` | `not_found` | The service or document does not exist or is not yours. |
+| `409` | `keyword_unavailable` | The keyword is already taken or requested on that country's shared codes. |
+| `409` | `duplicate_request` | You already have an identical pending request. |
+| `409` | `service_not_active` / `number_unavailable` | Replying on a service that is not `active` or `past_due`, or whose short code is paused. |
+| `409` | `invalid_state` | Updating or cancelling a `cancelled` or `rejected` service. |
+| `413` | `message_too_long` / `file_too_large` | The reply has too many segments, or an upload is over 5 MB. |
+| `415` | `unsupported_type` | Uploads must be PDF, PNG, JPG or WEBP. |
+| `422` | `country_unavailable` / `toll_free_unavailable` | Two-way (or toll free) is not offered in that country. |
+| `422` | `kyc_required` / `invalid_document` | No KYC link or upload was attached, or an uploaded document ID is unknown or already used. |
+| `422` | `validation_error` | The request body failed validation (`details.errors` lists the fields), or an invalid URL / email. |
 | `429` | `rate_limited` | Too many requests - retry with backoff. |
 
 ## Related
