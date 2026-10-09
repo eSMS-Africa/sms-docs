@@ -1,6 +1,6 @@
 ---
 title: Two-Way SMS
-description: Send and receive SMS on a short code - dedicated or shared (keyword), standard rated or toll free, across 54 African countries.
+description: Send and receive SMS on a short code - dedicated or shared (keyword), standard rated or toll free. Order online in 8 countries, on request across the rest of Africa.
 ---
 
 Build a solution that provides two-way communication service using short codes.
@@ -10,11 +10,23 @@ delivered to your backend in real time over a signed webhook, and you reply from
 the same short code with one API call.
 
 <Callout>
-Two-Way SMS is available to [eSMS SMS app](https://sms.esmsafrica.io) users in
-all 54 African countries. Request a service at
-[sms.esmsafrica.io/two-way](https://sms.esmsafrica.io/two-way) - nothing is charged
-until your request is approved.
+Two-Way SMS is available to [eSMS SMS app](https://sms.esmsafrica.io) users. Request a
+service at [sms.esmsafrica.io/two-way](https://sms.esmsafrica.io/two-way) - nothing is
+charged until your request is approved.
 </Callout>
+
+## Availability
+
+You can **order online** (self-service, with published prices) in
+Nigeria (NG), Ghana (GH), Madagascar (MG), Kenya (KE), Uganda (UG), Zambia (ZM), Ethiopia (ET) and Cote d'Ivoire (CI).
+
+Every other African country is **available on request**: send a request from
+[sms.esmsafrica.io/two-way](https://sms.esmsafrica.io/two-way) (or the API) and our team
+confirms availability, pricing and the documents the networks need before anything is
+charged. On-request countries show no prices in the app or the
+[pricing endpoint](/docs/api-reference/two-way#get-pricing) - they are quoted per request. More countries
+move to self-service as networks are set up; the `availability` field of the pricing
+endpoint is always current.
 
 ## Dedicated or shared
 
@@ -168,7 +180,7 @@ Look up `B` (`sms_basic_price_usd`) for Nigeria on
 and use the effective `inbound_price_usd` and `outbound_price_usd` when a country
 has a custom price.
 
-Live prices for every country are on [esmsafrica.io/two-way-sms](https://esmsafrica.io/two-way-sms)
+Live prices for the self-service countries (and the on-request list) are on [esmsafrica.io/two-way-sms](https://esmsafrica.io/two-way-sms)
 and from the public [`GET /api/two-way/pricing`](/docs/api-reference/two-way#get-pricing)
 endpoint. Prices can change per country; the price shown when you request a
 service is the one you are charged.

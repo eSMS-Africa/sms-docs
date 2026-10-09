@@ -60,7 +60,11 @@ GET https://sms.esmsafrica.io/api/two-way/pricing
 ```
 
 Public - no authentication. Cached for up to 5 minutes. Returns every country where
-Two-Way SMS is offered, in USD.
+Two-Way SMS is offered, in USD, with its `availability`:
+
+- `available` - order it yourself (self-service). Currently Nigeria (NG), Ghana (GH), Madagascar (MG), Kenya (KE), Uganda (UG), Zambia (ZM), Ethiopia (ET) and Cote d'Ivoire (CI).
+- `on_request` - every other country: send a [request](#request-a-service) and the team
+  confirms availability and pricing. These rows have `null` prices and `is_available: false`.
 
 Per-SMS prices follow each country's **Basic SMS rate** (the USD per-SMS figure shown as
 Basic on [esmsafrica.io/pricing](https://esmsafrica.io/pricing)) unless a custom two-way
@@ -77,6 +81,7 @@ Prices in the examples on this page are illustrative - read live values from thi
     {
       "country_code": "NG",
       "country_name": "Nigeria",
+      "availability": "available",
       "setup_fee_usd": 100,
       "monthly_fee_usd": 50,
       "shared_keyword_monthly_fee_usd": 50,
@@ -97,7 +102,8 @@ Prices in the examples on this page are illustrative - read live values from thi
 |-------|------|-------------|
 | `country_code` | string | ISO 3166-1 alpha-2 code. |
 | `country_name` | string | Display name. |
-| `setup_fee_usd` | number | One-time setup fee, charged on approval. |
+| `availability` | string | `available` (order it yourself) or `on_request` (request it; prices are quoted, so all price fields are `null`). |
+| `setup_fee_usd` | number \| null | One-time setup fee, charged on approval. |
 | `monthly_fee_usd` | number | Monthly maintenance for a dedicated code, VAT inclusive. Charged on approval, then every 30 days. |
 | `shared_keyword_monthly_fee_usd` | number | Monthly fee for a keyword on a shared code. |
 | `sms_basic_price_usd` | number \| null | The country's Basic SMS rate in USD per SMS. `null` when the country has no SMS route yet. |
@@ -107,10 +113,9 @@ Prices in the examples on this page are illustrative - read live values from thi
 | `toll_free_available` | boolean | Whether toll free short codes are offered in this country. |
 | `toll_free_inbound_price_usd` | number \| null | Price per incoming SMS on a toll free code. `null` means the same as `inbound_price_usd`. |
 | `networks` | string[] | Mobile networks served. |
-| `is_available` | boolean | Whether new services can be requested in this country. |
+| `is_available` | boolean | `true` when `availability` is `available` (self-service ordering). |
 
-A country with no Basic SMS rate and no custom price returns `null` per-SMS prices and
-`is_available: false`.
+A country with no Basic SMS rate and no custom price is shown as `on_request`.
 
 ### Example
 
@@ -209,6 +214,7 @@ func main() {
   "keyword": "JOIN",
   "toll_free": false,
   "status": "active",
+  "on_request": false,
   "number": "32811",
   "use_case": "Marketing sign-ups: customers text JOIN to get our weekly offers",
   "company_name": "Acme Foods Ltd",
@@ -257,6 +263,7 @@ func main() {
 | `type` | `dedicated` or `shared`. |
 | `keyword` | Your keyword on a shared code (`null` for dedicated). |
 | `toll_free` | `true` for a toll free code - you pay for incoming and outgoing SMS; the end user pays nothing. |
+| `on_request` | `true` when the service was requested in an `on_request` country - the team confirms availability and pricing before approving, and `fees` are `null` until then. |
 | `number` | The short code assigned to the service. `null` until approved. |
 | `kyc_document_urls` / `kyc_documents` | The KYC links you sent and the files you [uploaded](#upload-a-kyc-document). |
 | `webhook_url` | Where `message.inbound` events for this service are posted. When `null`, events go to your account `mo_url` from [Webhooks](/docs/delivery/webhooks). |
@@ -322,20 +329,25 @@ request is approved, and a rejected request costs nothing.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `country_code` | string | Yes | ISO alpha-2 code of a country where `is_available` is `true`. |
+| `country_code` | string | Yes | ISO alpha-2 code of a country from [Get pricing](#get-pricing). `available` countries are orders; `on_request` countries are enquiries (see below). |
 | `type` | string | Yes | `dedicated` or `shared`. |
 | `keyword` | string | For `shared` | 2-20 letters or digits, no spaces (`STOP`, `START`, `HELP` and `INFO` are reserved). Check it first with [keyword availability](#check-keyword-availability). |
 | `toll_free` | boolean | No | Request a toll free code (default `false`). Only where `toll_free_available` is `true`. |
 | `use_case` | string | Yes | What the service is for and sample messages (10-4000 characters), e.g. a survey, marketing sign-ups or a support line. |
 | `company_name` | string | Yes | Registered business name. |
 | `kyc_document_urls` | string[] | One of these | Links (http/https) to your KYC documents (business registration, tax registration, director ID, authorisation letter). Up to 10. |
-| `kyc_document_ids` | integer[] | One of these | IDs returned by [Upload a KYC document](#upload-a-kyc-document). Up to 10. At least one link or upload is required. |
+| `kyc_document_ids` | integer[] | One of these | IDs returned by [Upload a KYC document](#upload-a-kyc-document). Up to 10. At least one link or upload is required in an `available` country (optional for `on_request`). |
 | `webhook_url` | string | No | HTTPS endpoint for `message.inbound` events. Can be set later. |
 
 ### Response (201)
 
 The new [service object](#the-service-object) with `status: "pending"` and
-`number: null`. A request for a country that is not available returns
+`number: null`.
+
+In an `on_request` country the request is an enquiry: it is created with
+`on_request: true`, KYC documents are optional at this stage and no prices are shown -
+the team contacts you to confirm availability, pricing and documents, and nothing is
+charged until you agree and the request is approved. A request for a country that is not offered at all returns
 `422 country_unavailable`; a keyword that is taken returns `409 keyword_unavailable`;
 a second identical pending request returns `409 duplicate_request`.
 
