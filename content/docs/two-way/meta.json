@@ -1,1 +1,1 @@
-{ "title": "Two-Way SMS", "icon": "messages", "pages": ["overview"] }
+{ "title": "Two-Way SMS", "icon": "messages", "pages": ["overview", "example", "sandbox"] }

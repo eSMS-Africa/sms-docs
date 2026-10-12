@@ -1,0 +1,586 @@
+---
+title: Conversations
+description: One thread per phone per keyword - list conversations with unread counts and the conversation-affinity window, read a thread, and mark it read.
+---
+
+A **conversation** is the thread between one phone and one of your keywords on one short
+code. It is created the first time either side messages the other, and its
+`conversation_id` is the same ID you get in every
+[`message.inbound` webhook](/docs/api-reference/two-way/webhooks#messageinbound) and
+send response, so you can key your own session state on it.
+
+Each conversation also shows the **affinity window**: while `affinity_active` is `true`,
+plain replies from that phone on a shared code (no keyword) are delivered to you. The
+window runs for 72 hours (by default) from the last message your keyword sent to the phone.
+If another keyword on the same code texts that phone more recently, plain replies go to it
+instead, even though your window has not expired.
+
+All conversation endpoints need `service_id` or `keyword` (plus `code` if you hold the
+keyword on two codes). Scope: `two_way` or `query`.
+
+## List conversations
+
+```
+GET https://sms.esmsafrica.io/v1/two-way/conversations
+```
+
+Most recent activity first, [cursor paginated](/docs/api-reference/two-way#pagination).
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `service_id` / `keyword` | integer / string | Required: which keyword. |
+| `code` | string | With `keyword`, when you hold it on two codes. |
+| `unread_only` | boolean | Only conversations with unread inbound messages. |
+| `cursor` | string | `next_cursor` from the previous page. |
+| `limit` | integer | 1 to 200, default 50. |
+
+### Response
+
+```json
+{
+  "data": [
+    {
+      "conversation_id": 981,
+      "service_id": 42,
+      "keyword": "CLINIC",
+      "code": "3450",
+      "phone": "+2348012345678",
+      "unread": 2,
+      "last_inbound_at": "2026-10-12T09:32:10+00:00",
+      "last_sent_at": "2026-10-12T09:30:40+00:00",
+      "last_read_at": null,
+      "affinity_active": true,
+      "affinity_expires_at": "2026-10-15T09:30:40+00:00",
+      "opted_out": false,
+      "last_message": {
+        "id": "a3c5e8f0-6b1d-4c2e-9f7a-1d2e3f4a5b6c",
+        "direction": "inbound",
+        "text": "2",
+        "created_at": "2026-10-12T09:32:10+00:00"
+      }
+    }
+  ],
+  "has_more": false,
+  "next_cursor": null,
+  "total_unread": 7
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `unread` | Inbound messages since you last [marked it read](#mark-a-conversation-read). |
+| `last_inbound_at` / `last_sent_at` / `last_read_at` | Last message from the phone, last message you sent, last time you marked it read. |
+| `affinity_active` | `true` while plain replies from this phone route to you (unless another keyword on the code texted it more recently). |
+| `affinity_expires_at` | When the window closes: `last_sent_at` plus the window. `null` if you never sent to this phone. |
+| `opted_out` | The phone opted out of your keyword or the whole code. Sends to it are refused. |
+| `last_message` | The latest message in either direction. |
+| `total_unread` | Unread messages across all conversations for this keyword. |
+
+### Examples
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl "https://sms.esmsafrica.io/v1/two-way/conversations?keyword=CLINIC&unread_only=true&limit=50" \
+  -H "Authorization: Bearer $ESMS_API_KEY"
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const params = new URLSearchParams({
+  keyword: "CLINIC",
+  unread_only: "true",
+  limit: "50",
+});
+const res = await fetch(`https://sms.esmsafrica.io/v1/two-way/conversations?${params}`, {
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}` },
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.get(
+    "https://sms.esmsafrica.io/v1/two-way/conversations",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    params={
+        "keyword": "CLINIC",
+        "unread_only": "true",
+        "limit": 50,
+    },
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$query = http_build_query([
+    "keyword" => "CLINIC",
+    "unread_only" => "true",
+    "limit" => 50,
+]);
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/conversations?" . $query);
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY")],
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+)
+
+func main() {
+	q := url.Values{}
+	q.Set("keyword", "CLINIC")
+	q.Set("unread_only", "true")
+	q.Set("limit", "50")
+	req, _ := http.NewRequest("GET", "https://sms.esmsafrica.io/v1/two-way/conversations?" + q.Encode(), nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## Get a conversation
+
+```
+GET https://sms.esmsafrica.io/v1/two-way/conversations/{phone}
+```
+
+Inbound and outbound messages with one phone for a keyword, **oldest first**. Write the
+phone in international format; the leading `+` is optional (`2348012345678`), or encode
+it as `%2B`.
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `service_id` / `keyword` | integer / string | Required: which keyword. |
+| `code` | string | With `keyword`, when you hold it on two codes. |
+| `limit` | integer | 1 to 500, default 100 (the most recent messages). |
+| `before` | string | `next_before` from the previous response, to page further back. |
+
+### Response
+
+```json
+{
+  "conversation": {
+    "conversation_id": 981,
+    "service_id": 42,
+    "keyword": "CLINIC",
+    "code": "3450",
+    "phone": "+2348012345678",
+    "unread": 2,
+    "last_inbound_at": "2026-10-12T09:32:10+00:00",
+    "last_sent_at": "2026-10-12T09:30:40+00:00",
+    "last_read_at": null,
+    "affinity_active": true,
+    "affinity_expires_at": "2026-10-15T09:30:40+00:00",
+    "opted_out": false,
+    "last_message": { "id": "a3c5e8f0-6b1d-4c2e-9f7a-1d2e3f4a5b6c", "direction": "inbound", "text": "2", "created_at": "2026-10-12T09:32:10+00:00" }
+  },
+  "messages": [
+    {
+      "id": "b7e1c2d4-0f3a-4c5b-8d6e-7f8091a2b3c4",
+      "service_id": 42,
+      "keyword": "CLINIC",
+      "code": "3450",
+      "direction": "inbound",
+      "from": "+2348012345678",
+      "to": "3450",
+      "phone": "+2348012345678",
+      "text": "CLINIC",
+      "body_without_keyword": "",
+      "matched_by": "keyword",
+      "status": "received",
+      "billed": true,
+      "cost": 0.0068,
+      "segments": 1,
+      "conversation_id": 981,
+      "created_at": "2026-10-12T09:30:00+00:00",
+      "auto_reply": false
+    },
+    {
+      "id": "6f1d2c3b-4a59-4e7d-8c6b-5a4f3e2d1c0b",
+      "service_id": 42,
+      "keyword": "CLINIC",
+      "code": "3450",
+      "direction": "outbound",
+      "from": "3450",
+      "to": "+2348012345678",
+      "phone": "+2348012345678",
+      "text": "CLINIC: Welcome! Reply 1 Emergency, 2 Maternity, 3 Pharmacy, 4 Talk to a nurse.",
+      "body_without_keyword": null,
+      "matched_by": null,
+      "status": "delivered",
+      "billed": true,
+      "cost": 0.0068,
+      "segments": 1,
+      "conversation_id": 981,
+      "created_at": "2026-10-12T09:30:40+00:00",
+      "auto_reply": false
+    }
+  ],
+  "has_more": false,
+  "next_before": null
+}
+```
+
+Messages have the same fields as [List messages](/docs/api-reference/two-way/messages#list-messages),
+plus `auto_reply` (`true` when your keyword's auto-reply sent it). Returns
+`404 not_found` when you have never exchanged a message with that phone on this keyword.
+
+### Examples
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl "https://sms.esmsafrica.io/v1/two-way/conversations/2348012345678?keyword=CLINIC&limit=100" \
+  -H "Authorization: Bearer $ESMS_API_KEY"
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const params = new URLSearchParams({
+  keyword: "CLINIC",
+  limit: "100",
+});
+const res = await fetch(`https://sms.esmsafrica.io/v1/two-way/conversations/2348012345678?${params}`, {
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}` },
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.get(
+    "https://sms.esmsafrica.io/v1/two-way/conversations/2348012345678",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    params={
+        "keyword": "CLINIC",
+        "limit": 100,
+    },
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$query = http_build_query([
+    "keyword" => "CLINIC",
+    "limit" => 100,
+]);
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/conversations/2348012345678?" . $query);
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY")],
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+)
+
+func main() {
+	q := url.Values{}
+	q.Set("keyword", "CLINIC")
+	q.Set("limit", "100")
+	req, _ := http.NewRequest("GET", "https://sms.esmsafrica.io/v1/two-way/conversations/2348012345678?" + q.Encode(), nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## Mark a conversation read
+
+```
+POST https://sms.esmsafrica.io/v1/two-way/conversations/{phone}/read
+```
+
+Sets `unread` to `0`. It does not change the order of your conversation list. Pass
+`service_id` or `keyword` (and `code` if needed) as query parameters.
+
+```json
+{ "phone": "+2348012345678", "unread": 0 }
+```
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl -X POST "https://sms.esmsafrica.io/v1/two-way/conversations/2348012345678/read?keyword=CLINIC" \
+  -H "Authorization: Bearer $ESMS_API_KEY"
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const params = new URLSearchParams({
+  keyword: "CLINIC",
+});
+const res = await fetch(`https://sms.esmsafrica.io/v1/two-way/conversations/2348012345678/read?${params}`, {
+  method: "POST",
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}` },
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.post(
+    "https://sms.esmsafrica.io/v1/two-way/conversations/2348012345678/read",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    params={
+        "keyword": "CLINIC",
+    },
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$query = http_build_query([
+    "keyword" => "CLINIC",
+]);
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/conversations/2348012345678/read?" . $query);
+curl_setopt_array($ch, [
+    CURLOPT_CUSTOMREQUEST => "POST",
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY")],
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+)
+
+func main() {
+	q := url.Values{}
+	q.Set("keyword", "CLINIC")
+	req, _ := http.NewRequest("POST", "https://sms.esmsafrica.io/v1/two-way/conversations/2348012345678/read?" + q.Encode(), nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## Service-scoped paths
+
+The same three operations are available under a service ID, which is what the dashboard
+uses. They take the same parameters (except `service_id` / `keyword` / `code`) and return
+the same shapes.
+
+| Method | Path |
+|--------|------|
+| `GET` | `/v1/two-way/services/{service_id}/conversations` |
+| `GET` | `/v1/two-way/services/{service_id}/conversations/{phone}` |
+| `POST` | `/v1/two-way/services/{service_id}/conversations/{phone}/read` |
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl "https://sms.esmsafrica.io/v1/two-way/services/42/conversations?unread_only=true" \
+  -H "Authorization: Bearer $ESMS_API_KEY"
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const params = new URLSearchParams({
+  unread_only: "true",
+});
+const res = await fetch(`https://sms.esmsafrica.io/v1/two-way/services/42/conversations?${params}`, {
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}` },
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.get(
+    "https://sms.esmsafrica.io/v1/two-way/services/42/conversations",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    params={
+        "unread_only": "true",
+    },
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$query = http_build_query([
+    "unread_only" => "true",
+]);
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/services/42/conversations?" . $query);
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY")],
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+)
+
+func main() {
+	q := url.Values{}
+	q.Set("unread_only", "true")
+	req, _ := http.NewRequest("GET", "https://sms.esmsafrica.io/v1/two-way/services/42/conversations?" + q.Encode(), nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## Related
+
+<Cards>
+  <Card title="Messages" href="/docs/api-reference/two-way/messages" description="Send from your keyword and list messages." />
+  <Card title="How inbound is matched" href="/docs/two-way/overview#how-inbound-is-matched" description="Keywords, conversation affinity and unmatched messages." />
+</Cards>

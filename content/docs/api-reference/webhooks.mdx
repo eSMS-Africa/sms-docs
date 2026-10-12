@@ -42,7 +42,7 @@ All fields are optional. Omitted fields are unchanged.
 | Field | Type | Description |
 |-------|------|-------------|
 | `dlr_url` | string | URL to receive delivery report callbacks (send `""` to clear) |
-| `mo_url` | string | URL for incoming message (MO) callbacks |
+| `mo_url` | string | URL for incoming message (MO) callbacks. Two-Way SMS keywords without their own webhook URL also post here ([Two-Way webhooks](/docs/api-reference/two-way/webhooks)). |
 | `is_active` | boolean | Enable or disable webhook delivery |
 
 ### Response `200`

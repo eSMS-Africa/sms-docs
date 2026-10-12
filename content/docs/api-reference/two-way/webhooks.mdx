@@ -1,0 +1,662 @@
+---
+title: Webhooks
+description: The message.inbound, two_way.opt_out and two_way.opt_in events - every field, headers, HMAC-SHA256 signature verification, full handlers in five languages, the 1m/5m/30m/2h/8h retry schedule, test events and the delivery log.
+---
+
+Two-Way SMS pushes events to your server as signed JSON `POST` requests.
+
+| Event | When |
+|-------|------|
+| [`message.inbound`](#messageinbound) | A message for your keyword arrived (including STOP, START and HELP, flagged in `action`). |
+| [`two_way.opt_out`](#two_wayopt_out-and-two_wayopt_in) | A phone opted out of your keyword (`scope: "service"`) or of the whole code (`scope: "global"`). |
+| [`two_way.opt_in`](#two_wayopt_out-and-two_wayopt_in) | A phone opted back in. |
+
+**Where events go:** the keyword's `webhook_url` if set (in the request, under **Manage**
+in the app, or with [`PATCH /v1/two-way/services/{id}`](/docs/api-reference/two-way/keywords#update-a-keyword)),
+otherwise your account MO URL under **Settings > Webhooks**. If your account webhooks
+are switched off, or there is no URL, nothing is posted and messages wait in your
+inbox. A `suspended` keyword stores messages but posts nothing.
+
+## `message.inbound`
+
+```json
+{
+  "event": "message.inbound",
+  "id": "a3c5e8f0-6b1d-4c2e-9f7a-1d2e3f4a5b6c",
+  "message_id": "a3c5e8f0-6b1d-4c2e-9f7a-1d2e3f4a5b6c",
+  "service_id": 42,
+  "keyword": "CLINIC",
+  "code": "3450",
+  "from": "+2348012345678",
+  "to": "3450",
+  "text": "CLINIC book a visit",
+  "raw_text": "CLINIC book a visit",
+  "body_without_keyword": "book a visit",
+  "received_at": "2026-10-12T09:30:00+00:00",
+  "conversation_id": 981,
+  "matched_by": "keyword",
+  "opt_out": false,
+  "action": null,
+  "segments": 1,
+  "billed": true,
+  "two_way": {
+    "service_id": 42,
+    "number": "3450",
+    "keyword": "CLINIC",
+    "type": "shared",
+    "toll_free": false
+  }
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `event` | string | `message.inbound`. |
+| `id` / `message_id` | string | Unique ID of the inbound message (the same value). De-duplicate retries on it. |
+| `service_id` | integer | Your keyword's service ID. |
+| `keyword` | string \| null | Your keyword (`null` on a dedicated code without one). |
+| `code` / `to` | string | The short code that was texted. |
+| `from` | string | The customer's number in international format. Reply to this. |
+| `text` | string | The message. With `strip_keyword` on, keyword matches arrive without the keyword. |
+| `raw_text` | string | Exactly what the customer sent. |
+| `body_without_keyword` | string | The text with your keyword and its separator removed (`"CLINIC: 2"` gives `"2"`). For affinity and dedicated matches, the whole text. |
+| `received_at` | string | When eSMS received it (ISO 8601, UTC). |
+| `conversation_id` | integer | The thread between this phone and your keyword on this code. Stable across messages; key session state on it. |
+| `matched_by` | string | `keyword` (first word was your keyword), `affinity` (plain reply inside your conversation window), `dedicated` (dedicated code) or `admin` (an unmatched message our team passed to you). |
+| `action` | string \| null | `null` for a normal message. `opted_out` (STOP), `opted_in` (START) or `help` (HELP) for compliance words, which the platform has already answered. |
+| `opt_out` | boolean | `true` when `action` is `opted_out`. |
+| `segments` | integer | Billable segments of the inbound message. |
+| `billed` | boolean \| null | `true` charged at your inbound price, `false` stored unbilled because your balance was too low (you are notified), `null` not billable (STOP/START/HELP, or passed to you by our team). |
+| `two_way` | object | `service_id`, `number` (the code), `keyword`, `type` (`shared` or `dedicated`) and `toll_free`. |
+
+### Examples by situation
+
+| Customer sends | `text` | `body_without_keyword` | `matched_by` | `action` |
+|----------------|--------|------------------------|--------------|----------|
+| `CLINIC` | `CLINIC` | `""` | `keyword` | `null` |
+| `clinic: 2` | `clinic: 2` | `2` | `keyword` | `null` |
+| `2` (inside your window) | `2` | `2` | `affinity` | `null` |
+| `CLINIC STOP` | `CLINIC STOP` | `STOP` | `keyword` | `opted_out` |
+| `HELP` (inside your window) | `HELP` | `HELP` | `affinity` | `help` |
+| `STOP` (bare, you had talked to this phone) | `STOP` | `STOP` | `affinity` | `opted_out` |
+
+## `two_way.opt_out` and `two_way.opt_in`
+
+Sent together with the `message.inbound` for the same STOP or START.
+
+```json
+{
+  "event": "two_way.opt_out",
+  "id": "evt_5f2a9c1b7d3e4a60",
+  "message_id": "a3c5e8f0-6b1d-4c2e-9f7a-1d2e3f4a5b6c",
+  "service_id": 42,
+  "keyword": "CLINIC",
+  "code": "3450",
+  "phone": "+2348012345678",
+  "from": "+2348012345678",
+  "scope": "global",
+  "occurred_at": "2026-10-12T09:31:00+00:00",
+  "conversation_id": 981,
+  "two_way": { "service_id": 42, "number": "3450", "keyword": "CLINIC", "type": "shared", "toll_free": false }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `event` | `two_way.opt_out` or `two_way.opt_in`. |
+| `id` | Unique event ID (`evt_...`). |
+| `message_id` | The inbound message that caused it. |
+| `phone` / `from` | The phone that opted out or in. |
+| `scope` | `service`: `CLINIC STOP` / `CLINIC START` (your keyword only). `global`: a bare `STOP` / `START` to the code (every keyword on it; sent to each keyword the phone has talked to). |
+| `occurred_at` | When it happened (ISO 8601, UTC). |
+| `conversation_id`, `service_id`, `keyword`, `code`, `two_way` | As in `message.inbound`. |
+
+While a phone is opted out, sends to it from your keyword fail with
+`403 recipient_opted_out`; you do not need to keep your own suppression list, but you may.
+
+## Headers
+
+| Header | Value |
+|--------|-------|
+| `Content-Type` | `application/json` |
+| `X-Webhook-Signature` | `sha256=<hex>`: HMAC-SHA256 of the raw request body, keyed with your account signing secret. |
+| `X-Webhook-ID` | A unique ID for this delivery attempt (`evt_...`). |
+| `X-Esms-Environment` | `sandbox` on [sandbox](/docs/two-way/sandbox) webhooks only. |
+
+Your signing secret is shown and rotated under **Settings > Webhooks** (the same secret
+signs every eSMS webhook on your account). The service object's `webhook_signing.secret_hint`
+shows a masked hint of it.
+
+## Verifying the signature
+
+Compute HMAC-SHA256 over the **raw bytes** of the request body (before any JSON parsing or
+re-serialising), prefix `sha256=`, and compare with `X-Webhook-Signature` in constant
+time. Reject the request with `401` if it does not match.
+
+<Tabs items={["Node.js", "Python", "PHP", "Go", "cURL"]}>
+<Tab value="Node.js">
+
+```js
+import crypto from "node:crypto";
+
+export function verifyEsms(rawBody, header, secret) {
+  const expected = "sha256=" + crypto.createHmac("sha256", secret).update(rawBody).digest("hex");
+  const a = Buffer.from(header || "");
+  const b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import hashlib
+import hmac
+
+
+def verify_esms(raw_body: bytes, header: str, secret: str) -> bool:
+    expected = "sha256=" + hmac.new(secret.encode(), raw_body, hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, header or "")
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+function verify_esms(string $rawBody, string $header, string $secret): bool {
+    $expected = "sha256=" . hash_hmac("sha256", $rawBody, $secret);
+    return hash_equals($expected, $header);
+}
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package esms
+
+import (
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+)
+
+func VerifyEsms(rawBody []byte, header, secret string) bool {
+	mac := hmac.New(sha256.New, []byte(secret))
+	mac.Write(rawBody)
+	expected := "sha256=" + hex.EncodeToString(mac.Sum(nil))
+	return hmac.Equal([]byte(expected), []byte(header))
+}
+```
+
+</Tab>
+<Tab value="cURL">
+
+```bash
+# Recompute the signature of a captured body (body.json must be byte-for-byte what you received).
+printf 'sha256=%s\n' "$(openssl dgst -sha256 -hmac "$ESMS_WEBHOOK_SECRET" -hex < body.json | awk '{print $NF}')"
+```
+
+</Tab>
+</Tabs>
+
+## Full handler examples
+
+Each handler verifies the signature, acknowledges with `200` straight away, skips
+duplicates, compliance events and (in production) sandbox traffic, and replies FROM the
+keyword with [`POST /v1/two-way/messages`](/docs/api-reference/two-way/messages#send-a-message).
+
+<Tabs items={["Node.js", "Python", "PHP", "Go"]}>
+<Tab value="Node.js">
+
+```js
+import crypto from "node:crypto";
+import express from "express";
+
+const SECRET = process.env.ESMS_WEBHOOK_SECRET;
+const API_KEY = process.env.ESMS_API_KEY;
+const LIVE = API_KEY.startsWith("esms_live_");
+const seen = new Set(); // use your database in production
+
+function verify(raw, header) {
+  const expected = "sha256=" + crypto.createHmac("sha256", SECRET).update(raw).digest("hex");
+  const a = Buffer.from(header || ""), b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+const app = express();
+app.post("/hooks/esms", express.raw({ type: "application/json" }), async (req, res) => {
+  if (!verify(req.body, req.get("X-Webhook-Signature"))) return res.sendStatus(401);
+  res.sendStatus(200);
+
+  const ev = JSON.parse(req.body.toString());
+  if ((LIVE && ev.sandbox) || seen.has(ev.id)) return;
+  seen.add(ev.id);
+
+  if (ev.event === "two_way.opt_out") return console.log("opted out", ev.phone, ev.scope);
+  if (ev.event !== "message.inbound" || ev.action) return;
+
+  await fetch("https://sms.esmsafrica.io/v1/two-way/messages", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ service_id: ev.service_id, to: ev.from, text: `You said: ${ev.body_without_keyword}` }),
+  });
+});
+app.listen(3000);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import hashlib
+import hmac
+import json
+import os
+import threading
+
+import requests
+from flask import Flask, abort, request
+
+SECRET = os.environ["ESMS_WEBHOOK_SECRET"].encode()
+API_KEY = os.environ["ESMS_API_KEY"]
+LIVE = API_KEY.startswith("esms_live_")
+seen: set[str] = set()  # use your database in production
+app = Flask(__name__)
+
+
+def reply(service_id: int, to: str, text: str) -> None:
+    requests.post("https://sms.esmsafrica.io/v1/two-way/messages",
+                  headers={"Authorization": f"Bearer {API_KEY}"},
+                  json={"service_id": service_id, "to": to, "text": text}, timeout=15)
+
+
+@app.post("/hooks/esms")
+def hook():
+    raw = request.get_data()
+    expected = "sha256=" + hmac.new(SECRET, raw, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, request.headers.get("X-Webhook-Signature", "")):
+        abort(401)
+    ev = json.loads(raw)
+    if (LIVE and ev.get("sandbox")) or ev["id"] in seen:
+        return "", 200
+    seen.add(ev["id"])
+    if ev["event"] == "message.inbound" and not ev.get("action"):
+        threading.Thread(target=reply, args=(ev["service_id"], ev["from"],
+                                              f"You said: {ev['body_without_keyword']}")).start()
+    return "", 200
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$raw = file_get_contents("php://input");
+$expected = "sha256=" . hash_hmac("sha256", $raw, getenv("ESMS_WEBHOOK_SECRET"));
+if (!hash_equals($expected, $_SERVER["HTTP_X_WEBHOOK_SIGNATURE"] ?? "")) {
+    http_response_code(401);
+    exit;
+}
+$ev = json_decode($raw, true);
+$apiKey = getenv("ESMS_API_KEY");
+$live = str_starts_with($apiKey, "esms_live_");
+
+// Acknowledge first, then do the work.
+http_response_code(200);
+if (function_exists("fastcgi_finish_request")) {
+    fastcgi_finish_request();
+}
+
+if (($live && !empty($ev["sandbox"])) || $ev["event"] !== "message.inbound" || !empty($ev["action"])) {
+    exit;
+}
+// De-duplicate on $ev["id"] in your database here.
+
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/messages");
+curl_setopt_array($ch, [
+    CURLOPT_POST => true,
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . $apiKey, "Content-Type: application/json"],
+    CURLOPT_POSTFIELDS => json_encode([
+        "service_id" => $ev["service_id"],
+        "to" => $ev["from"],
+        "text" => "You said: " . $ev["body_without_keyword"],
+    ]),
+]);
+curl_exec($ch);
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"bytes"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
+	"io"
+	"net/http"
+	"os"
+	"strings"
+	"sync"
+)
+
+type Event struct {
+	Event              string  `json:"event"`
+	ID                 string  `json:"id"`
+	ServiceID          int     `json:"service_id"`
+	From               string  `json:"from"`
+	BodyWithoutKeyword string  `json:"body_without_keyword"`
+	ConversationID     int     `json:"conversation_id"`
+	MatchedBy          string  `json:"matched_by"`
+	Action             *string `json:"action"`
+	Sandbox            bool    `json:"sandbox"`
+}
+
+var (
+	secret = []byte(os.Getenv("ESMS_WEBHOOK_SECRET"))
+	apiKey = os.Getenv("ESMS_API_KEY")
+	live   = strings.HasPrefix(apiKey, "esms_live_")
+	seen   sync.Map // use your database in production
+)
+
+func reply(serviceID int, to, text string) {
+	body, _ := json.Marshal(map[string]any{"service_id": serviceID, "to": to, "text": text})
+	req, _ := http.NewRequest("POST", "https://sms.esmsafrica.io/v1/two-way/messages", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Content-Type", "application/json")
+	if res, err := http.DefaultClient.Do(req); err == nil {
+		res.Body.Close()
+	}
+}
+
+func hook(w http.ResponseWriter, r *http.Request) {
+	raw, _ := io.ReadAll(r.Body)
+	mac := hmac.New(sha256.New, secret)
+	mac.Write(raw)
+	if !hmac.Equal([]byte("sha256="+hex.EncodeToString(mac.Sum(nil))), []byte(r.Header.Get("X-Webhook-Signature"))) {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+
+	var ev Event
+	if json.Unmarshal(raw, &ev) != nil || (live && ev.Sandbox) {
+		return
+	}
+	if _, dup := seen.LoadOrStore(ev.ID, true); dup {
+		return
+	}
+	if ev.Event == "message.inbound" && ev.Action == nil {
+		go reply(ev.ServiceID, ev.From, "You said: "+ev.BodyWithoutKeyword)
+	}
+}
+
+func main() {
+	http.HandleFunc("/hooks/esms", hook)
+	http.ListenAndServe(":3000", nil)
+}
+```
+
+</Tab>
+</Tabs>
+
+## Delivery and retries
+
+- Respond with any `2xx` within **15 seconds**. Do slow work after responding.
+- If the request fails (timeout, connection error or an HTTP error status), the same
+  payload is retried after **1 minute, 5 minutes, 30 minutes, 2 hours and 8 hours**:
+  six attempts in total. Retries are stored on our side and survive restarts.
+- Retries carry the same body, so de-duplicate on `id`.
+- Webhook URLs must resolve to a public address. Private, loopback and cloud-metadata
+  addresses are blocked.
+- Every attempt is recorded in the [delivery log](#webhook-delivery-log).
+
+## Send a test webhook
+
+```
+POST https://sms.esmsafrica.io/v1/two-way/services/{service_id}/test-webhook
+```
+
+Posts a signed sample `message.inbound` (with `"test": true`) to the keyword's effective
+webhook URL and tells you what your endpoint answered. Returns `400 no_webhook` if neither
+the keyword nor the account has a URL. Scope: `two_way`.
+
+```json
+{ "ok": true, "status": 200, "url": "https://example.com/hooks/esms" }
+```
+
+```json
+{ "ok": false, "status": 500, "error": "HTTP 500", "url": "https://example.com/hooks/esms" }
+```
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl -X POST "https://sms.esmsafrica.io/v1/two-way/services/42/test-webhook" \
+  -H "Authorization: Bearer $ESMS_API_KEY"
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/v1/two-way/services/42/test-webhook", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}` },
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.post(
+    "https://sms.esmsafrica.io/v1/two-way/services/42/test-webhook",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/services/42/test-webhook");
+curl_setopt_array($ch, [
+    CURLOPT_CUSTOMREQUEST => "POST",
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY")],
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+)
+
+func main() {
+	req, _ := http.NewRequest("POST", "https://sms.esmsafrica.io/v1/two-way/services/42/test-webhook", nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+To test full flows (keyword, affinity, STOP, HELP) with real payloads, use the
+[sandbox](/docs/two-way/sandbox) instead.
+
+## Webhook delivery log
+
+```
+GET https://sms.esmsafrica.io/v1/two-way/services/{service_id}/webhook-deliveries
+```
+
+Every attempt for this keyword's inbound and opt-out events, newest first, with the HTTP
+status, error, a snippet of your response and the next scheduled retry. `limit` 1 to 200,
+default 50. Scope: `two_way` or `query`.
+
+```json
+{
+  "data": [
+    {
+      "id": 5512,
+      "event": "message.inbound",
+      "message_id": "a3c5e8f0-6b1d-4c2e-9f7a-1d2e3f4a5b6c",
+      "url": "https://example.com/hooks/esms",
+      "attempt": 2,
+      "success": false,
+      "status_code": 502,
+      "error": null,
+      "response_snippet": "Bad Gateway",
+      "next_retry_at": "2026-10-12T09:36:00+00:00",
+      "created_at": "2026-10-12T09:31:00+00:00"
+    }
+  ]
+}
+```
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl "https://sms.esmsafrica.io/v1/two-way/services/42/webhook-deliveries?limit=50" \
+  -H "Authorization: Bearer $ESMS_API_KEY"
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const params = new URLSearchParams({
+  limit: "50",
+});
+const res = await fetch(`https://sms.esmsafrica.io/v1/two-way/services/42/webhook-deliveries?${params}`, {
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}` },
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.get(
+    "https://sms.esmsafrica.io/v1/two-way/services/42/webhook-deliveries",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    params={
+        "limit": 50,
+    },
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$query = http_build_query([
+    "limit" => 50,
+]);
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/services/42/webhook-deliveries?" . $query);
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY")],
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+)
+
+func main() {
+	q := url.Values{}
+	q.Set("limit", "50")
+	req, _ := http.NewRequest("GET", "https://sms.esmsafrica.io/v1/two-way/services/42/webhook-deliveries?" + q.Encode(), nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## Sandbox webhooks
+
+Webhooks from the [sandbox](/docs/two-way/sandbox) have the same shape and signature,
+plus `"sandbox": true`, `"environment": "sandbox"`, `"livemode": false`, `"billed": false`,
+`"would_bill"`, and the header `X-Esms-Environment: sandbox`. They retry quickly (after 1
+and 3 seconds) and are recorded on the sandbox message, not in the delivery log above.
+Ignore them in production.
+
+## Related
+
+<Cards>
+  <Card title="Two-Way SMS guide" href="/docs/two-way/overview#webhooks" description="Webhooks in context: matching, opt-out and HELP." />
+  <Card title="Sandbox" href="/docs/api-reference/two-way/sandbox" description="Generate real signed payloads without sending an SMS." />
+</Cards>

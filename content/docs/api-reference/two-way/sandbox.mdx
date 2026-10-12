@@ -1,0 +1,1561 @@
+---
+title: Sandbox
+description: The Two-Way SMS sandbox API - simulated phones, simulated inbound with the live matching rules and a debug record, sends to simulated phones, the sandbox clock, a sandbox webhook URL, reset and request bins.
+---
+
+The sandbox runs your keyword flow on simulated phones. Inbound messages are matched by
+the **same function as live traffic**, but every effect stays in your private sandbox:
+no SMS is sent, nothing is charged, and your live inbox, opt-outs, conversations and
+webhook log are untouched. Read the [sandbox guide](/docs/two-way/sandbox) for the
+concepts; this page lists the endpoints.
+
+- **Who:** any account with a two-way keyword that is `pending`, `active`, `past_due` or
+  `suspended` (otherwise `403 no_two_way_service`).
+- **Auth:** dashboard session or API key. Reads need `two_way` or `query`; everything that
+  changes the sandbox needs `two_way`. A test key (`esms_test_`) works the same as a live
+  key here.
+- **Also sandbox:** [`POST /v1/two-way/messages`](/docs/api-reference/two-way/messages#send-a-message)
+  with an `esms_test_` key, or with `"environment": "sandbox"`.
+
+## Get the sandbox context
+
+```
+GET https://sms.esmsafrica.io/v1/two-way/sandbox
+```
+
+Everything the simulator needs: your testable keywords, the selected keyword and its code,
+other keywords sharing the code, your phones, the sandbox clock, where webhooks will go and
+your request bins. Pass `service_id` to select a keyword (default: your first). The first
+call creates a simulated phone for you.
+
+```json
+{
+  "eligible": true,
+  "is_admin": false,
+  "services": [
+    { "id": 42, "keyword": "CLINIC", "type": "shared", "status": "pending", "awaiting_payment": false,
+      "country_code": "NG", "code": "3450", "company_name": "Example Health Ltd", "mine": true }
+  ],
+  "selected": {
+    "service": { "id": 42, "keyword": "CLINIC", "type": "shared", "status": "pending", "owner": "you",
+                 "company_name": "Example Health Ltd", "country_code": "NG", "help_text": null,
+                 "auto_reply_enabled": false, "auto_reply_text": null, "strip_keyword": false,
+                 "webhook_url": "https://example.com/hooks/esms" },
+    "code": "3450",
+    "virtual_code": false,
+    "mode": "shared",
+    "code_status": "active",
+    "window_hours": 72,
+    "dial_code": "234",
+    "sharing": [],
+    "other_keywords_on_code": 3
+  },
+  "phones": [{ "id": 9, "phone": "+2348000000001", "label": "Patient" }],
+  "state": { "clock_offset_hours": 0.0, "sim_now": "2026-10-12T09:30:00+00:00", "webhook_override_url": null },
+  "webhook": { "account_mo_url": null, "signing_secret_set": true, "active": true },
+  "bins": []
+}
+```
+
+`virtual_code: true` means your keyword has no short code yet and the sandbox is using a
+stand-in such as `TESTNG`. `other_keywords_on_code` counts other customers' keywords on the
+code (never named); `window_hours` is the conversation-affinity window.
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl "https://sms.esmsafrica.io/v1/two-way/sandbox?service_id=42" \
+  -H "Authorization: Bearer $ESMS_API_KEY"
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const params = new URLSearchParams({
+  service_id: "42",
+});
+const res = await fetch(`https://sms.esmsafrica.io/v1/two-way/sandbox?${params}`, {
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}` },
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.get(
+    "https://sms.esmsafrica.io/v1/two-way/sandbox",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    params={
+        "service_id": 42,
+    },
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$query = http_build_query([
+    "service_id" => 42,
+]);
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/sandbox?" . $query);
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY")],
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+)
+
+func main() {
+	q := url.Values{}
+	q.Set("service_id", "42")
+	req, _ := http.NewRequest("GET", "https://sms.esmsafrica.io/v1/two-way/sandbox?" + q.Encode(), nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## List testable keywords
+
+```
+GET https://sms.esmsafrica.io/v1/two-way/sandbox/services
+```
+
+Your keywords that can be tested (pending or live), with their code. Optional `search`
+(keyword, company or country). Returns `{ "services": [ ... ] }` with the same rows as
+`services` above.
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl "https://sms.esmsafrica.io/v1/two-way/sandbox/services" \
+  -H "Authorization: Bearer $ESMS_API_KEY"
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/v1/two-way/sandbox/services", {
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}` },
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.get(
+    "https://sms.esmsafrica.io/v1/two-way/sandbox/services",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/sandbox/services");
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY")],
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+)
+
+func main() {
+	req, _ := http.NewRequest("GET", "https://sms.esmsafrica.io/v1/two-way/sandbox/services", nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## Simulated phones
+
+| Method | Path | Body | Returns |
+|--------|------|------|---------|
+| `POST` | `/v1/two-way/sandbox/phones` | `label` (1-40 chars, default `"Phone"`), optional `phone` (7-15 digits) and `country_code` (default `NG`) | `201` `{ "id", "phone", "label" }` |
+| `PATCH` | `/v1/two-way/sandbox/phones/{phone_id}` | `label` | The phone |
+| `DELETE` | `/v1/two-way/sandbox/phones/{phone_id}` | - | `{ "ok": true }` |
+
+Without `phone`, the next free number like `+2348000000002` is picked. Up to 12 phones
+(`409 too_many_phones`); a number you already simulate gives `409 duplicate_phone`.
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl -X POST "https://sms.esmsafrica.io/v1/two-way/sandbox/phones" \
+  -H "Authorization: Bearer $ESMS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"label": "Mother", "country_code": "NG"}'
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/v1/two-way/sandbox/phones", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}`, "Content-Type": "application/json" },
+  body: JSON.stringify({
+    label: "Mother",
+    country_code: "NG",
+  }),
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.post(
+    "https://sms.esmsafrica.io/v1/two-way/sandbox/phones",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    json={
+        "label": "Mother",
+        "country_code": "NG",
+    },
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/sandbox/phones");
+curl_setopt_array($ch, [
+    CURLOPT_CUSTOMREQUEST => "POST",
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY"), "Content-Type: application/json"],
+    CURLOPT_POSTFIELDS => json_encode([
+        "label" => "Mother",
+        "country_code" => "NG",
+    ]),
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+)
+
+func main() {
+	body := []byte(`{"label": "Mother", "country_code": "NG"}`)
+	req, _ := http.NewRequest("POST", "https://sms.esmsafrica.io/v1/two-way/sandbox/phones", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## Simulate an inbound message
+
+```
+POST https://sms.esmsafrica.io/v1/two-way/sandbox/inbound
+```
+
+A simulated phone texts the keyword's short code. The message runs through the live
+matching rules (STOP / START / HELP, keyword, conversation affinity, unmatched) on sandbox
+data. The response is the debug record, any platform replies (STOP and HELP
+confirmations, the unmatched hint, your auto-reply) and the webhook payload. The webhook
+itself is posted in the background; poll [List sandbox messages](#list-sandbox-messages)
+for delivery results. Rate limit: 120 per minute.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `service_id` | integer | Yes | Any of your keywords; picks the short code the phone texts. |
+| `phone` | string | Yes | The simulated phone (any 7-15 digit number). |
+| `text` | string | Yes | 1 to 1,600 characters. |
+
+```json
+{
+  "message": {
+    "id": 311,
+    "direction": "inbound",
+    "kind": null,
+    "code": "3450",
+    "phone": "+2348000000001",
+    "text": "2",
+    "service_id": 42,
+    "keyword": "CLINIC",
+    "matched_by": "affinity",
+    "action": null,
+    "encoding": "GSM7",
+    "segments": 1,
+    "sim_at": "2026-10-12T09:32:10+00:00",
+    "created_at": "2026-10-12T09:32:10+00:00",
+    "debug": {
+      "label": "affinity",
+      "matched_by": "affinity",
+      "route": "deliver",
+      "action": null,
+      "keyword_parsed": "2",
+      "body_without_keyword": "2",
+      "service": { "id": 42, "keyword": "CLINIC", "type": "shared", "status": "pending", "owner": "you", "company_name": "Example Health Ltd" },
+      "reason": null,
+      "segments": 1,
+      "would_cost": { "amount": 0.0068, "currency": "USD", "unit_price": 0.0068, "segments": 1, "charged": false },
+      "billed_in_live": true,
+      "affinity": { "service_id": 42, "keyword": "CLINIC", "last_sent_at": "2026-10-12T09:30:40+00:00",
+                    "window_hours": 72, "expires_at": "2026-10-15T09:30:40+00:00" },
+      "conversation_id": 57,
+      "notes": [
+        "This keyword is not live yet. The sandbox treats it as active so you can build now.",
+        "No keyword, so it went to the service that last texted this phone from 3450 within 72h."
+      ],
+      "webhook_payload": { "event": "message.inbound", "sandbox": true, "environment": "sandbox", "...": "..." }
+    },
+    "webhook": {
+      "deliveries": [
+        { "event": "message.inbound", "url": "https://example.com/hooks/esms", "source": "service_webhook",
+          "status": "pending", "payload": { "...": "..." }, "attempts": [] }
+      ]
+    }
+  },
+  "replies": []
+}
+```
+
+Key debug fields:
+
+| Field | Description |
+|-------|-------------|
+| `label` / `matched_by` | `keyword`, `affinity`, `dedicated`, `unmatched`, or `stop` / `start` / `help` for compliance words. |
+| `route` | `deliver`, `service_control` (STOP/START/HELP for one keyword), `bare_control` (bare STOP/START, or HELP with no conversation) or `unmatched`. |
+| `body_without_keyword` | Exactly what the live webhook would carry. |
+| `service.owner` | `you`, or `another_customer` when the message matched someone else's keyword on the code (nothing else about them is shown and no webhook is sent). |
+| `reason` | Why it was unmatched: `no_keyword_match`, `no_active_service` or `number_disabled`. |
+| `would_cost` / `billed_in_live` | What live traffic would charge for this message. Never charged here. |
+| `affinity` / `affinity_state` | The conversation that decided an affinity match, and all of this phone's conversations on the code with expiry times. |
+| `notes` | Plain-language explanation of the decision. |
+| `webhook_payload` | The exact signed body your webhook receives. |
+
+`webhook.deliveries[].source` is `sandbox_override`, `service_webhook` or `account_mo_url`;
+`status` moves from `pending` to `delivered`, `failed` or `blocked` (URL not public), with
+each attempt's `status_code`, `latency_ms` and response.
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl -X POST "https://sms.esmsafrica.io/v1/two-way/sandbox/inbound" \
+  -H "Authorization: Bearer $ESMS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"service_id": 42, "phone": "+2348000000001", "text": "CLINIC"}'
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/v1/two-way/sandbox/inbound", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}`, "Content-Type": "application/json" },
+  body: JSON.stringify({
+    service_id: 42,
+    phone: "+2348000000001",
+    text: "CLINIC",
+  }),
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.post(
+    "https://sms.esmsafrica.io/v1/two-way/sandbox/inbound",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    json={
+        "service_id": 42,
+        "phone": "+2348000000001",
+        "text": "CLINIC",
+    },
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/sandbox/inbound");
+curl_setopt_array($ch, [
+    CURLOPT_CUSTOMREQUEST => "POST",
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY"), "Content-Type: application/json"],
+    CURLOPT_POSTFIELDS => json_encode([
+        "service_id" => 42,
+        "phone" => "+2348000000001",
+        "text" => "CLINIC",
+    ]),
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+)
+
+func main() {
+	body := []byte(`{"service_id": 42, "phone": "+2348000000001", "text": "CLINIC"}`)
+	req, _ := http.NewRequest("POST", "https://sms.esmsafrica.io/v1/two-way/sandbox/inbound", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## Send to a simulated phone
+
+```
+POST https://sms.esmsafrica.io/v1/two-way/sandbox/send
+```
+
+Sends FROM your keyword to a simulated phone, with the live checks (recipient country,
+length, opt-out) and sandbox conversation affinity, so the phone's plain replies route back
+to you. Never sent or charged. Rate limit: 120 per minute. This is the same as
+`POST /v1/two-way/messages` with a test key, by `service_id`.
+
+| Field | Type | Required |
+|-------|------|----------|
+| `service_id` | integer | Yes |
+| `to` | string | Yes |
+| `text` | string | Yes, 1 to 1,600 characters |
+
+```json
+{
+  "id": "sbx_312",
+  "status": "delivered",
+  "sandbox": true,
+  "environment": "sandbox",
+  "segments": 1,
+  "encoding": "GSM7",
+  "cost": 0.0,
+  "would_cost": 0.0068,
+  "currency": "USD",
+  "service_id": 42,
+  "keyword": "CLINIC",
+  "code": "3450",
+  "to": "+2348000000001",
+  "conversation_id": 57,
+  "affinity_expires_at": "2026-10-15T09:33:00+00:00",
+  "message": { "id": 312, "direction": "outbound", "kind": "reply", "...": "..." }
+}
+```
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl -X POST "https://sms.esmsafrica.io/v1/two-way/sandbox/send" \
+  -H "Authorization: Bearer $ESMS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"service_id": 42, "to": "+2348000000001", "text": "Maternity: Reply 1 to find the nearest clinic, 2 to book an antenatal visit."}'
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/v1/two-way/sandbox/send", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}`, "Content-Type": "application/json" },
+  body: JSON.stringify({
+    service_id: 42,
+    to: "+2348000000001",
+    text: "Maternity: Reply 1 to find the nearest clinic, 2 to book an antenatal visit.",
+  }),
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.post(
+    "https://sms.esmsafrica.io/v1/two-way/sandbox/send",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    json={
+        "service_id": 42,
+        "to": "+2348000000001",
+        "text": "Maternity: Reply 1 to find the nearest clinic, 2 to book an antenatal visit.",
+    },
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/sandbox/send");
+curl_setopt_array($ch, [
+    CURLOPT_CUSTOMREQUEST => "POST",
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY"), "Content-Type: application/json"],
+    CURLOPT_POSTFIELDS => json_encode([
+        "service_id" => 42,
+        "to" => "+2348000000001",
+        "text" => "Maternity: Reply 1 to find the nearest clinic, 2 to book an antenatal visit.",
+    ]),
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+)
+
+func main() {
+	body := []byte(`{"service_id": 42, "to": "+2348000000001", "text": "Maternity: Reply 1 to find the nearest clinic, 2 to book an antenatal visit."}`)
+	req, _ := http.NewRequest("POST", "https://sms.esmsafrica.io/v1/two-way/sandbox/send", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## Send a demo menu
+
+```
+POST https://sms.esmsafrica.io/v1/two-way/sandbox/demo
+```
+
+Sends a numbered menu to a simulated phone (*"&lt;KEYWORD&gt;: Welcome! Reply 1 for Emergency, 2
+for Maternity, 3 for Pharmacy, 4 to talk to a nurse. Reply STOP to opt out."*), or your own
+`text`, so you can try numbered replies straight away. Body: `service_id`, `to`, optional
+`text`. Same response as [Send to a simulated phone](#send-to-a-simulated-phone).
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl -X POST "https://sms.esmsafrica.io/v1/two-way/sandbox/demo" \
+  -H "Authorization: Bearer $ESMS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"service_id": 42, "to": "+2348000000001"}'
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/v1/two-way/sandbox/demo", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}`, "Content-Type": "application/json" },
+  body: JSON.stringify({
+    service_id: 42,
+    to: "+2348000000001",
+  }),
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.post(
+    "https://sms.esmsafrica.io/v1/two-way/sandbox/demo",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    json={
+        "service_id": 42,
+        "to": "+2348000000001",
+    },
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/sandbox/demo");
+curl_setopt_array($ch, [
+    CURLOPT_CUSTOMREQUEST => "POST",
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY"), "Content-Type: application/json"],
+    CURLOPT_POSTFIELDS => json_encode([
+        "service_id" => 42,
+        "to" => "+2348000000001",
+    ]),
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+)
+
+func main() {
+	body := []byte(`{"service_id": 42, "to": "+2348000000001"}`)
+	req, _ := http.NewRequest("POST", "https://sms.esmsafrica.io/v1/two-way/sandbox/demo", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## List sandbox messages
+
+```
+GET https://sms.esmsafrica.io/v1/two-way/sandbox/messages
+```
+
+Every simulated message on the keyword's code, oldest first, each with its debug record and
+webhook attempts.
+
+| Parameter | Description |
+|-----------|-------------|
+| `service_id` | Required. |
+| `phone` | Only this simulated phone (also returns its `affinity` state). |
+| `after_id` | Only messages after this ID - use it to poll. |
+| `limit` | 1 to 500, default 200. |
+
+```json
+{
+  "messages": [ { "id": 311, "direction": "inbound", "text": "2", "matched_by": "affinity", "...": "..." } ],
+  "code": "3450",
+  "sim_now": "2026-10-12T09:32:30+00:00",
+  "affinity": [
+    { "conversation_id": 57, "service_id": 42, "keyword": "CLINIC", "last_sent_at": "2026-10-12T09:30:40+00:00",
+      "expires_at": "2026-10-15T09:30:40+00:00", "active": true }
+  ]
+}
+```
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl "https://sms.esmsafrica.io/v1/two-way/sandbox/messages?service_id=42&phone=%2B2348000000001&after_id=310" \
+  -H "Authorization: Bearer $ESMS_API_KEY"
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const params = new URLSearchParams({
+  service_id: "42",
+  phone: "+2348000000001",
+  after_id: "310",
+});
+const res = await fetch(`https://sms.esmsafrica.io/v1/two-way/sandbox/messages?${params}`, {
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}` },
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.get(
+    "https://sms.esmsafrica.io/v1/two-way/sandbox/messages",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    params={
+        "service_id": 42,
+        "phone": "+2348000000001",
+        "after_id": 310,
+    },
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$query = http_build_query([
+    "service_id" => 42,
+    "phone" => "+2348000000001",
+    "after_id" => 310,
+]);
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/sandbox/messages?" . $query);
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY")],
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+)
+
+func main() {
+	q := url.Values{}
+	q.Set("service_id", "42")
+	q.Set("phone", "+2348000000001")
+	q.Set("after_id", "310")
+	req, _ := http.NewRequest("GET", "https://sms.esmsafrica.io/v1/two-way/sandbox/messages?" + q.Encode(), nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## Fast-forward the clock
+
+```
+POST https://sms.esmsafrica.io/v1/two-way/sandbox/clock
+```
+
+Moves your sandbox time forward so conversation affinity can expire without waiting.
+Send `{"advance_hours": 73}` (more than 0, up to 60 days in total) or `{"reset": true}`.
+Only your sandbox is affected. Returns the state:
+
+```json
+{ "clock_offset_hours": 73.0, "sim_now": "2026-10-15T10:30:00+00:00", "webhook_override_url": null }
+```
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl -X POST "https://sms.esmsafrica.io/v1/two-way/sandbox/clock" \
+  -H "Authorization: Bearer $ESMS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"advance_hours": 73}'
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/v1/two-way/sandbox/clock", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}`, "Content-Type": "application/json" },
+  body: JSON.stringify({
+    advance_hours: 73,
+  }),
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.post(
+    "https://sms.esmsafrica.io/v1/two-way/sandbox/clock",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    json={
+        "advance_hours": 73,
+    },
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/sandbox/clock");
+curl_setopt_array($ch, [
+    CURLOPT_CUSTOMREQUEST => "POST",
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY"), "Content-Type: application/json"],
+    CURLOPT_POSTFIELDS => json_encode([
+        "advance_hours" => 73,
+    ]),
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+)
+
+func main() {
+	body := []byte(`{"advance_hours": 73}`)
+	req, _ := http.NewRequest("POST", "https://sms.esmsafrica.io/v1/two-way/sandbox/clock", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## Set a sandbox webhook URL
+
+```
+PUT https://sms.esmsafrica.io/v1/two-way/sandbox/settings
+```
+
+Sandbox webhooks go to `webhook_override_url` instead of your keyword or account webhook.
+It must be a public `http(s)` URL (private, loopback and cloud-metadata addresses return
+`422 url_not_public`) or one of your [request bins](#request-bins). Send `null` or `""` to
+go back to your normal webhook. Returns the state.
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl -X PUT "https://sms.esmsafrica.io/v1/two-way/sandbox/settings" \
+  -H "Authorization: Bearer $ESMS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"webhook_override_url": "https://example.com/hooks/esms-sandbox"}'
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/v1/two-way/sandbox/settings", {
+  method: "PUT",
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}`, "Content-Type": "application/json" },
+  body: JSON.stringify({
+    webhook_override_url: "https://example.com/hooks/esms-sandbox",
+  }),
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.put(
+    "https://sms.esmsafrica.io/v1/two-way/sandbox/settings",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    json={
+        "webhook_override_url": "https://example.com/hooks/esms-sandbox",
+    },
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/sandbox/settings");
+curl_setopt_array($ch, [
+    CURLOPT_CUSTOMREQUEST => "PUT",
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY"), "Content-Type: application/json"],
+    CURLOPT_POSTFIELDS => json_encode([
+        "webhook_override_url" => "https://example.com/hooks/esms-sandbox",
+    ]),
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+)
+
+func main() {
+	body := []byte(`{"webhook_override_url": "https://example.com/hooks/esms-sandbox"}`)
+	req, _ := http.NewRequest("PUT", "https://sms.esmsafrica.io/v1/two-way/sandbox/settings", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## Reset the sandbox
+
+```
+POST https://sms.esmsafrica.io/v1/two-way/sandbox/reset
+```
+
+Clears your sandbox messages, conversations, opt-outs and clock. Phones, bins and the
+sandbox webhook URL are kept. Returns the state.
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl -X POST "https://sms.esmsafrica.io/v1/two-way/sandbox/reset" \
+  -H "Authorization: Bearer $ESMS_API_KEY"
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/v1/two-way/sandbox/reset", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}` },
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.post(
+    "https://sms.esmsafrica.io/v1/two-way/sandbox/reset",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/sandbox/reset");
+curl_setopt_array($ch, [
+    CURLOPT_CUSTOMREQUEST => "POST",
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY")],
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+)
+
+func main() {
+	req, _ := http.NewRequest("POST", "https://sms.esmsafrica.io/v1/two-way/sandbox/reset", nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## Request bins
+
+A request bin is a temporary URL we host that records the requests sent to it, so you can
+see your webhooks without running a server. Each bin lives **24 hours** and keeps the last
+**50** requests (bodies up to 16 KB). You can hold **3** bins at a time and create up to 10
+per hour.
+
+### Create a bin
+
+```
+POST https://sms.esmsafrica.io/v1/two-way/sandbox/bins
+```
+
+```json
+{
+  "token": "pT4m9x2QbV7cK1sN8eW3rY6uZ0aH5jLd",
+  "url": "https://sms.esmsafrica.io/api/two-way/sandbox/bins/pT4m9x2QbV7cK1sN8eW3rY6uZ0aH5jLd",
+  "expires_at": "2026-10-13T09:30:00+00:00",
+  "created_at": "2026-10-12T09:30:00+00:00",
+  "requests": 0
+}
+```
+
+Use `url` as your [sandbox webhook URL](#set-a-sandbox-webhook-url). It also accepts a
+`POST` (or `PUT`) from anything, without authentication: the unguessable token is the
+secret.
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl -X POST "https://sms.esmsafrica.io/v1/two-way/sandbox/bins" \
+  -H "Authorization: Bearer $ESMS_API_KEY"
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/v1/two-way/sandbox/bins", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}` },
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.post(
+    "https://sms.esmsafrica.io/v1/two-way/sandbox/bins",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/sandbox/bins");
+curl_setopt_array($ch, [
+    CURLOPT_CUSTOMREQUEST => "POST",
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY")],
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+)
+
+func main() {
+	req, _ := http.NewRequest("POST", "https://sms.esmsafrica.io/v1/two-way/sandbox/bins", nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+### List captured requests
+
+```
+GET https://sms.esmsafrica.io/v1/two-way/sandbox/bins/{token}/requests
+```
+
+Newest first. Headers are recorded without cookies or credentials. `410 expired` once the
+bin has expired.
+
+```json
+{
+  "bin": { "token": "pT4m9x2QbV7cK1sN8eW3rY6uZ0aH5jLd", "url": "https://sms.esmsafrica.io/api/two-way/sandbox/bins/pT4m9x2QbV7cK1sN8eW3rY6uZ0aH5jLd",
+           "expires_at": "2026-10-13T09:30:00+00:00", "created_at": "2026-10-12T09:30:00+00:00", "requests": 1 },
+  "requests": [
+    {
+      "id": 77,
+      "method": "POST",
+      "headers": {
+        "content-type": "application/json",
+        "x-webhook-id": "evt_9c2b7e4f1a3d5c60",
+        "x-webhook-signature": "sha256=4f1c...",
+        "x-esms-environment": "sandbox",
+        "user-agent": "eSMS-Webhooks/1.0 (sandbox)"
+      },
+      "body": "{\"event\": \"message.inbound\", ...}",
+      "json": { "event": "message.inbound", "sandbox": true, "...": "..." },
+      "source": "sandbox",
+      "received_at": "2026-10-12T09:32:10+00:00"
+    }
+  ]
+}
+```
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl "https://sms.esmsafrica.io/v1/two-way/sandbox/bins/pT4m9x2QbV7cK1sN8eW3rY6uZ0aH5jLd/requests" \
+  -H "Authorization: Bearer $ESMS_API_KEY"
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/v1/two-way/sandbox/bins/pT4m9x2QbV7cK1sN8eW3rY6uZ0aH5jLd/requests", {
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}` },
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.get(
+    "https://sms.esmsafrica.io/v1/two-way/sandbox/bins/pT4m9x2QbV7cK1sN8eW3rY6uZ0aH5jLd/requests",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/sandbox/bins/pT4m9x2QbV7cK1sN8eW3rY6uZ0aH5jLd/requests");
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY")],
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+)
+
+func main() {
+	req, _ := http.NewRequest("GET", "https://sms.esmsafrica.io/v1/two-way/sandbox/bins/pT4m9x2QbV7cK1sN8eW3rY6uZ0aH5jLd/requests", nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+### Delete a bin
+
+```
+DELETE https://sms.esmsafrica.io/v1/two-way/sandbox/bins/{token}
+```
+
+Deletes the bin and its requests (and clears it as your sandbox webhook URL if it was set).
+Returns `{ "ok": true }`.
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl -X DELETE "https://sms.esmsafrica.io/v1/two-way/sandbox/bins/pT4m9x2QbV7cK1sN8eW3rY6uZ0aH5jLd" \
+  -H "Authorization: Bearer $ESMS_API_KEY"
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/v1/two-way/sandbox/bins/pT4m9x2QbV7cK1sN8eW3rY6uZ0aH5jLd", {
+  method: "DELETE",
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}` },
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.delete(
+    "https://sms.esmsafrica.io/v1/two-way/sandbox/bins/pT4m9x2QbV7cK1sN8eW3rY6uZ0aH5jLd",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/sandbox/bins/pT4m9x2QbV7cK1sN8eW3rY6uZ0aH5jLd");
+curl_setopt_array($ch, [
+    CURLOPT_CUSTOMREQUEST => "DELETE",
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY")],
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+)
+
+func main() {
+	req, _ := http.NewRequest("DELETE", "https://sms.esmsafrica.io/v1/two-way/sandbox/bins/pT4m9x2QbV7cK1sN8eW3rY6uZ0aH5jLd", nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## Related
+
+<Cards>
+  <Card title="Sandbox guide" href="/docs/two-way/sandbox" description="The phone simulator, scenarios and isolation rules." />
+  <Card title="Webhooks" href="/docs/api-reference/two-way/webhooks" description="The payloads your handler receives, live and sandbox." />
+</Cards>

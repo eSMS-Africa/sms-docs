@@ -1,0 +1,299 @@
+---
+title: "Example: healthcare navigation"
+description: A numbered-menu flow on a shared short code - keyword to start, plain number replies by conversation affinity, opt-out and restart - with the webhooks each step produces and a complete handler.
+---
+
+This walk-through builds a patient navigation line for a fictional clinic network on a
+shared short code. Patients text a keyword, get a numbered menu and answer with plain
+numbers. Swap the keyword, the menu and the answers for your own service.
+
+| | |
+|---|---|
+| Country | Nigeria |
+| Short code | `3450` (shared, operated by eSMS Africa) |
+| Keyword | `CLINIC` |
+| What patients are told | **Text CLINIC to 3450** |
+
+<Callout type="info">
+Build this in the [sandbox](/docs/two-way/sandbox) first: use an `esms_test_` key for
+the send calls and the phone simulator (or `POST /v1/two-way/sandbox/inbound`) for the
+patient's side. The webhooks are identical except for `"sandbox": true`.
+</Callout>
+
+## The conversation
+
+```
+Patient -> 3450   CLINIC
+3450 -> Patient   CLINIC: Welcome! Reply 1 Emergency, 2 Maternity, 3 Pharmacy, 4 Talk to a nurse. Reply CLINIC STOP to opt out.
+Patient -> 3450   2
+3450 -> Patient   Maternity: Reply 1 to find the nearest clinic, 2 to book an antenatal visit, 0 for the main menu.
+Patient -> 3450   1
+3450 -> Patient   Reply with your area, e.g. Yaba.
+Patient -> 3450   Surulere
+3450 -> Patient   Nearest maternity clinic: Example Health Centre, Main Road, open 24h. Reply 0 for the main menu.
+```
+
+## Step by step
+
+### 1. The patient texts the keyword
+
+The first message must contain the keyword, because the patient has no conversation with
+you yet. Your webhook receives:
+
+```json
+{
+  "event": "message.inbound",
+  "id": "b7e1c2d4-0f3a-4c5b-8d6e-7f8091a2b3c4",
+  "keyword": "CLINIC",
+  "code": "3450",
+  "from": "+2348012345678",
+  "text": "CLINIC",
+  "body_without_keyword": "",
+  "conversation_id": 981,
+  "matched_by": "keyword",
+  "action": null,
+  "billed": true
+}
+```
+
+(Trimmed - the full payload is on the [webhook reference](/docs/api-reference/two-way/webhooks#messageinbound).)
+
+`body_without_keyword` is empty, so you treat it as "show the main menu". If the patient
+had texted `CLINIC 2`, `body_without_keyword` would be `"2"` and you could jump straight to
+Maternity.
+
+### 2. You send the menu
+
+```bash
+curl -X POST "https://sms.esmsafrica.io/v1/two-way/messages" \
+  -H "Authorization: Bearer $ESMS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"keyword": "CLINIC", "to": "+2348012345678", "text": "CLINIC: Welcome! Reply 1 Emergency, 2 Maternity, 3 Pharmacy, 4 Talk to a nurse. Reply CLINIC STOP to opt out."}'
+```
+
+```json
+{
+  "id": "6f1d2c3b-4a59-4e7d-8c6b-5a4f3e2d1c0b",
+  "status": "submitted",
+  "segments": 1,
+  "cost": 0.0068,
+  "currency": "USD",
+  "balance_after": 41.27,
+  "service_id": 42,
+  "keyword": "CLINIC",
+  "code": "3450",
+  "to": "+2348012345678",
+  "conversation_id": 981
+}
+```
+
+This send opens the **conversation window**: for the next 72 hours, a message from this
+phone to `3450` without a keyword comes to `CLINIC` (unless another keyword on `3450`
+texts the patient later).
+
+### 3. The patient replies with a plain number
+
+```json
+{
+  "event": "message.inbound",
+  "keyword": "CLINIC",
+  "code": "3450",
+  "from": "+2348012345678",
+  "text": "2",
+  "body_without_keyword": "2",
+  "conversation_id": 981,
+  "matched_by": "affinity",
+  "billed": true
+}
+```
+
+`matched_by: "affinity"` tells you this arrived because of your open conversation. Look up
+the patient's state by `conversation_id` (`981`): they were at the main menu, so `2` means
+Maternity. Each reply you send restarts the 72-hour window.
+
+### 4. Free text inside a flow
+
+Answers do not have to be numbers. When the patient sends `Surulere` it also arrives with
+`matched_by: "affinity"` because the window is open. One caution: if the free text happens
+to start with another business's keyword on the same code, the keyword wins and it goes to
+them. Ask for answers that are unlikely to collide (an area name, a date) or prefix them
+(`CLINIC Surulere` always reaches you).
+
+### 5. The patient comes back a week later
+
+The window has expired. A bare `3` is **unmatched**: it is not delivered to you or
+charged, and the patient gets the code's free hint asking them to start with a keyword.
+That is why the menu above ends with ways to restart, and why your printed material says
+**Text CLINIC to 3450**. `CLINIC 3` would reach you and could jump straight to Pharmacy.
+
+### 6. The patient opts out
+
+`CLINIC STOP` opts the patient out of your keyword. You receive `message.inbound` with
+`action: "opted_out"` and a `two_way.opt_out` event with `scope: "service"`; the platform
+sends the confirmation for free. A bare `STOP` opts them out of every keyword on `3450`
+(`scope: "global"`). Either way, further sends return `403 recipient_opted_out` until the
+patient texts `CLINIC START` or `START`.
+
+### 7. The patient asks for HELP
+
+`HELP` while the conversation is open (or `CLINIC HELP` at any time) is answered by the
+platform with your HELP text, free. Set it to something like *"CLINIC by Example Health:
+patient navigation. Text CLINIC to 3450 for the menu. Reply CLINIC STOP to opt out."*
+
+## Complete handler
+
+The handler verifies the signature, acknowledges at once, ignores compliance events and
+sandbox traffic in production, keeps a tiny state machine per `conversation_id`, and
+replies from the keyword.
+
+<Tabs items={["Node.js", "Python"]}>
+<Tab value="Node.js">
+
+```js
+import crypto from "node:crypto";
+import express from "express";
+
+const SECRET = process.env.ESMS_WEBHOOK_SECRET;
+const API_KEY = process.env.ESMS_API_KEY; // esms_test_... while building, esms_live_... in production
+const LIVE = API_KEY.startsWith("esms_live_");
+const state = new Map(); // conversation_id -> step. Use a database in production.
+const seen = new Set();  // event ids already handled (retries reuse the id)
+
+const MENU = "CLINIC: Welcome! Reply 1 Emergency, 2 Maternity, 3 Pharmacy, 4 Talk to a nurse. Reply CLINIC STOP to opt out.";
+
+function verify(raw, header) {
+  const expected = "sha256=" + crypto.createHmac("sha256", SECRET).update(raw).digest("hex");
+  const a = Buffer.from(header || ""), b = Buffer.from(expected);
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
+async function send(to, text) {
+  const res = await fetch("https://sms.esmsafrica.io/v1/two-way/messages", {
+    method: "POST",
+    headers: { Authorization: `Bearer ${API_KEY}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ keyword: "CLINIC", to, text }),
+  });
+  if (!res.ok) console.error("send failed", res.status, await res.text());
+}
+
+function next(step, input) {
+  const t = input.trim().toLowerCase();
+  if (step === "menu" || t === "0" || t === "") {
+    if (t === "1") return ["done", "Emergency: call 112 now or go to the nearest emergency unit. Reply 0 for the main menu."];
+    if (t === "2") return ["maternity", "Maternity: Reply 1 to find the nearest clinic, 2 to book an antenatal visit, 0 for the main menu."];
+    if (t === "3") return ["done", "Pharmacy: reply with a medicine name and we will check stock near you."];
+    if (t === "4") return ["done", "A nurse will call you within 30 minutes. Reply 0 for the main menu."];
+    return ["menu", MENU];
+  }
+  if (step === "maternity" && t === "1") return ["area", "Reply with your area, e.g. Yaba."];
+  if (step === "maternity" && t === "2") return ["done", "Reply with a date for your antenatal visit, e.g. Tue 14 Oct."];
+  if (step === "area") return ["done", `Nearest maternity clinic to ${input.trim()}: Example Health Centre, open 24h. Reply 0 for the main menu.`];
+  return ["menu", MENU];
+}
+
+const app = express();
+app.post("/hooks/esms", express.raw({ type: "application/json" }), (req, res) => {
+  if (!verify(req.body, req.get("X-Webhook-Signature"))) return res.sendStatus(401);
+  res.sendStatus(200); // acknowledge first, work after
+
+  const ev = JSON.parse(req.body.toString());
+  if (LIVE && ev.sandbox) return;                 // never act on sandbox traffic in production
+  if (seen.has(ev.id)) return; seen.add(ev.id);
+  if (ev.event !== "message.inbound" || ev.action) return; // STOP/START/HELP are handled by the platform
+
+  const step = ev.matched_by === "keyword" ? "menu" : (state.get(ev.conversation_id) || "menu");
+  const [nextStep, reply] = next(step, ev.body_without_keyword);
+  state.set(ev.conversation_id, nextStep);
+  send(ev.from, reply);
+});
+app.listen(3000);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import hashlib
+import hmac
+import json
+import os
+import threading
+
+import requests
+from flask import Flask, abort, request
+
+SECRET = os.environ["ESMS_WEBHOOK_SECRET"].encode()
+API_KEY = os.environ["ESMS_API_KEY"]  # esms_test_... while building, esms_live_... in production
+LIVE = API_KEY.startswith("esms_live_")
+state: dict[int, str] = {}  # conversation_id -> step. Use a database in production.
+seen: set[str] = set()      # event ids already handled (retries reuse the id)
+
+MENU = "CLINIC: Welcome! Reply 1 Emergency, 2 Maternity, 3 Pharmacy, 4 Talk to a nurse. Reply CLINIC STOP to opt out."
+
+
+def send(to: str, text: str) -> None:
+    r = requests.post("https://sms.esmsafrica.io/v1/two-way/messages",
+                      headers={"Authorization": f"Bearer {API_KEY}"},
+                      json={"keyword": "CLINIC", "to": to, "text": text}, timeout=15)
+    if not r.ok:
+        print("send failed", r.status_code, r.text)
+
+
+def next_step(step: str, text: str) -> tuple[str, str]:
+    t = text.strip().lower()
+    if step == "menu" or t in ("0", ""):
+        return {
+            "1": ("done", "Emergency: call 112 now or go to the nearest emergency unit. Reply 0 for the main menu."),
+            "2": ("maternity", "Maternity: Reply 1 to find the nearest clinic, 2 to book an antenatal visit, 0 for the main menu."),
+            "3": ("done", "Pharmacy: reply with a medicine name and we will check stock near you."),
+            "4": ("done", "A nurse will call you within 30 minutes. Reply 0 for the main menu."),
+        }.get(t, ("menu", MENU))
+    if step == "maternity" and t == "1":
+        return "area", "Reply with your area, e.g. Yaba."
+    if step == "maternity" and t == "2":
+        return "done", "Reply with a date for your antenatal visit, e.g. Tue 14 Oct."
+    if step == "area":
+        return "done", f"Nearest maternity clinic to {text.strip()}: Example Health Centre, open 24h. Reply 0 for the main menu."
+    return "menu", MENU
+
+
+app = Flask(__name__)
+
+
+@app.post("/hooks/esms")
+def hook():
+    raw = request.get_data()
+    expected = "sha256=" + hmac.new(SECRET, raw, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(expected, request.headers.get("X-Webhook-Signature", "")):
+        abort(401)
+    ev = json.loads(raw)
+    if (LIVE and ev.get("sandbox")) or ev["id"] in seen:
+        return "", 200
+    seen.add(ev["id"])
+    if ev.get("event") == "message.inbound" and not ev.get("action"):
+        step = "menu" if ev["matched_by"] == "keyword" else state.get(ev["conversation_id"], "menu")
+        new_step, reply = next_step(step, ev["body_without_keyword"])
+        state[ev["conversation_id"]] = new_step
+        threading.Thread(target=send, args=(ev["from"], reply)).start()  # reply after acknowledging
+    return "", 200
+```
+
+</Tab>
+</Tabs>
+
+## What it costs
+
+Each patient message delivered to you and each message you send is billed per segment at
+Nigeria's two-way prices (the Basic SMS price unless a custom price is set; read the live
+figures from [`GET /v1/two-way/pricing`](/docs/api-reference/two-way/keywords#get-pricing)).
+The conversation above is 4 inbound and 4 outbound single-segment messages. STOP, START
+and HELP, the platform's confirmations, and the unmatched hint in step 5 are free. The
+keyword itself is a one-time setup fee plus a monthly fee.
+
+## Related
+
+<Cards>
+  <Card title="Two-Way SMS guide" href="/docs/two-way/overview" description="Matching rules, opt-out, HELP, billing and requesting a keyword." />
+  <Card title="Sandbox & phone simulator" href="/docs/two-way/sandbox" description="Run this flow on simulated phones before going live." />
+  <Card title="Webhook reference" href="/docs/api-reference/two-way/webhooks" description="Every field of message.inbound and the opt-out events." />
+</Cards>

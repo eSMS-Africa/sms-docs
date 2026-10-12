@@ -1,0 +1,201 @@
+---
+title: Two-Way SMS API
+description: Every Two-Way SMS endpoint - keywords, sending from your short code, inbound messages, conversations, webhooks and the sandbox - with authentication, pagination and errors.
+---
+
+The Two-Way SMS API manages your keywords on eSMS Africa shared short codes, sends
+messages FROM your keyword, reads inbound messages and conversations, and drives the
+sandbox. Inbound messages and opt-outs are pushed to you as signed
+[webhooks](/docs/api-reference/two-way/webhooks). For how matching, opt-out and
+billing work, read the [Two-Way SMS guide](/docs/two-way/overview) first.
+
+## Base URL
+
+```
+https://sms.esmsafrica.io/v1/two-way
+```
+
+Every path is also served under `https://sms.esmsafrica.io/api/two-way/...`. The two
+prefixes are identical; these docs use `/v1`.
+
+## Authentication
+
+Send an API key (or use a signed-in dashboard session):
+
+```
+Authorization: Bearer esms_live_your_api_key
+```
+
+| Endpoints | Scope needed (any one) |
+|-----------|------------------------|
+| Reads: `GET /keywords`, `/keywords/check`, `/countries`, `/messages`, `/conversations`, `/services` and everything under `/services/{id}/...`, `GET /sandbox/...`, and `POST /conversations/{phone}/read` | `two_way` or `query` |
+| Sending: `POST /messages`, `POST /services/{id}/reply` | `two_way` or `send` |
+| Changes: `POST /services`, `PATCH /services/{id}`, `POST /services/{id}/cancel`, `POST /kyc-documents`, `POST /services/{id}/test-webhook`, and the sandbox writes (`phones`, `inbound`, `send`, `demo`, `clock`, `settings`, `reset`, `bins`) | `two_way` |
+| `GET /pricing` | None - public |
+
+New keys get `send`, `query` and `webhooks` by default, which is enough to read and to
+send from your keyword. To request keywords or drive the sandbox over the API, create the
+key with `"scopes": "send,query,webhooks,two_way"` (see
+[API keys](/docs/api-keys/overview)). A missing scope returns `403 insufficient_scope`.
+Sending from a suspended account returns `403 account_suspended`.
+
+## Live and sandbox
+
+| Key | `POST /messages` and `/reply` | Everything else |
+|-----|-------------------------------|-----------------|
+| `esms_live_...` | Sends a real SMS and charges your wallet. Add `"environment": "sandbox"` to send to the sandbox instead. | Your live data |
+| `esms_test_...` | Always goes to the [sandbox](/docs/two-way/sandbox): delivered to a simulated phone, never sent, never charged. Works for pending keywords. | Same endpoints, same data |
+
+## Endpoints
+
+### Keywords and services
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/pricing` | [Pricing by country](/docs/api-reference/two-way/keywords#get-pricing) (public) |
+| `GET` | `/countries` | [Countries, KYC notes and shared codes](/docs/api-reference/two-way/keywords#list-countries) |
+| `GET` | `/keywords` | [List your keywords](/docs/api-reference/two-way/keywords#list-your-keywords) with the "Text X to Y" instruction |
+| `GET` | `/keywords/check` | [Check a keyword is free](/docs/api-reference/two-way/keywords#check-a-keyword) |
+| `POST` | `/kyc-documents` | [Upload a KYC document](/docs/api-reference/two-way/keywords#upload-a-kyc-document) |
+| `GET` | `/kyc-documents/{id}` | [Download one of your KYC documents](/docs/api-reference/two-way/keywords#upload-a-kyc-document) |
+| `POST` | `/services` | [Request a keyword](/docs/api-reference/two-way/keywords#request-a-keyword) |
+| `GET` | `/services` | [List your services](/docs/api-reference/two-way/keywords#list-services) |
+| `GET` | `/services/{id}` | [Get a service](/docs/api-reference/two-way/keywords#get-a-service) |
+| `PATCH` | `/services/{id}` | [Update webhook, auto-reply, HELP text, keyword stripping, email forwarding](/docs/api-reference/two-way/keywords#update-a-keyword) |
+| `POST` | `/services/{id}/cancel` | [Cancel a keyword](/docs/api-reference/two-way/keywords#cancel-a-keyword) |
+| `GET` | `/services/{id}/opt-outs` | [Phones that opted out](/docs/api-reference/two-way/keywords#list-opt-outs) |
+| `GET` | `/services/{id}/stats` | [Usage stats](/docs/api-reference/two-way/keywords#usage-stats) |
+| `GET` | `/services/{id}/billing` | [Billing history](/docs/api-reference/two-way/keywords#billing-history) |
+| `GET` | `/services/{id}/export.csv` | [Export messages as CSV](/docs/api-reference/two-way/keywords#export-messages-csv) |
+
+### Messages
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/messages` | [Send FROM your keyword's short code](/docs/api-reference/two-way/messages#send-a-message) |
+| `GET` | `/messages` | [List inbound / outbound messages](/docs/api-reference/two-way/messages#list-messages) (cursor paginated) |
+| `POST` | `/services/{id}/reply` | [Reply from the short code](/docs/api-reference/two-way/messages#reply-legacy) (legacy, still supported) |
+| `GET` | `/services/{id}/messages` | [Message history for one service](/docs/api-reference/two-way/messages#service-message-history) (legacy) |
+
+### Conversations
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/conversations` | [List conversations for a keyword](/docs/api-reference/two-way/conversations#list-conversations) |
+| `GET` | `/conversations/{phone}` | [Get one conversation](/docs/api-reference/two-way/conversations#get-a-conversation) |
+| `POST` | `/conversations/{phone}/read` | [Mark a conversation read](/docs/api-reference/two-way/conversations#mark-a-conversation-read) |
+| `GET` | `/services/{id}/conversations` | [Service-scoped aliases](/docs/api-reference/two-way/conversations#service-scoped-paths) |
+
+### Webhooks
+
+| Event / endpoint | Description |
+|------------------|-------------|
+| `message.inbound` | [An inbound message for your keyword](/docs/api-reference/two-way/webhooks#messageinbound) |
+| `two_way.opt_out` / `two_way.opt_in` | [A phone opted out or back in](/docs/api-reference/two-way/webhooks#two_wayopt_out-and-two_wayopt_in) |
+| `POST /services/{id}/test-webhook` | [Send a signed test event](/docs/api-reference/two-way/webhooks#send-a-test-webhook) |
+| `GET /services/{id}/webhook-deliveries` | [Webhook delivery log](/docs/api-reference/two-way/webhooks#webhook-delivery-log) |
+
+### Sandbox
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/sandbox` | [Sandbox context](/docs/api-reference/two-way/sandbox#get-the-sandbox-context) |
+| `GET` | `/sandbox/services` | [Keywords you can test](/docs/api-reference/two-way/sandbox#list-testable-keywords) |
+| `POST` / `PATCH` / `DELETE` | `/sandbox/phones` | [Simulated phones](/docs/api-reference/two-way/sandbox#simulated-phones) |
+| `POST` | `/sandbox/inbound` | [Simulate a phone texting the code](/docs/api-reference/two-way/sandbox#simulate-an-inbound-message) |
+| `POST` | `/sandbox/send` | [Send to a simulated phone](/docs/api-reference/two-way/sandbox#send-to-a-simulated-phone) |
+| `POST` | `/sandbox/demo` | [Send a numbered demo menu](/docs/api-reference/two-way/sandbox#send-a-demo-menu) |
+| `GET` | `/sandbox/messages` | [Sandbox threads with debug records](/docs/api-reference/two-way/sandbox#list-sandbox-messages) |
+| `POST` | `/sandbox/clock` | [Fast-forward the clock](/docs/api-reference/two-way/sandbox#fast-forward-the-clock) |
+| `PUT` | `/sandbox/settings` | [Sandbox webhook URL](/docs/api-reference/two-way/sandbox#set-a-sandbox-webhook-url) |
+| `POST` | `/sandbox/reset` | [Reset the sandbox](/docs/api-reference/two-way/sandbox#reset-the-sandbox) |
+| `POST` / `GET` / `DELETE` | `/sandbox/bins` | [Request bins](/docs/api-reference/two-way/sandbox#request-bins) |
+
+## Pagination
+
+List endpoints that can grow without bound use **cursor pagination**, newest first:
+
+```json
+{ "data": [ ... ], "has_more": true, "next_cursor": "18342" }
+```
+
+Pass `next_cursor` back as `cursor` to get the next page; stop when `has_more` is `false`.
+`limit` is 1 to 200 (default 50). A single conversation pages backwards with `before` /
+`next_before` instead, because it is returned oldest first.
+
+```js
+let cursor = null;
+do {
+  const params = new URLSearchParams({ keyword: "CLINIC", limit: "200", ...(cursor && { cursor }) });
+  const res = await fetch(`https://sms.esmsafrica.io/v1/two-way/messages?${params}`, {
+    headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}` },
+  });
+  const page = await res.json();
+  page.data.forEach((m) => console.log(m.created_at, m.from, m.text));
+  cursor = page.has_more ? page.next_cursor : null;
+} while (cursor);
+```
+
+## Identifying a keyword
+
+Endpoints that act on one keyword accept either `service_id` or `keyword`. If you hold
+the same keyword on two short codes, add `code` (or use `service_id`); otherwise you get
+`409 ambiguous_keyword`.
+
+## Errors
+
+Errors use the standard envelope. Branch on `error.code`; extra fields are in
+`error.details`.
+
+```json
+{
+  "error": {
+    "code": "recipient_opted_out",
+    "message": "+2348012345678 has opted out of your messages and cannot be contacted.",
+    "request_id": "3f9a1c2b4d5e6f708192a3b4c5d6e7f8",
+    "details": { "phone": "+2348012345678" }
+  }
+}
+```
+
+| HTTP | `code` | When |
+|------|--------|------|
+| `400` | `invalid_phone` | `to` is not a valid number. |
+| `400` | `invalid_recipient_country` | `to` is not in the short code's country - a code only reaches its own country. |
+| `400` | `empty_text` | `text` is empty. |
+| `400` | `price_unset` | No price is configured to bill the send. Contact support. |
+| `401` | `unauthorized` | Missing or invalid key or session. |
+| `402` | `insufficient_balance` | Your wallet cannot cover the send (`details.required`, `details.available`, `details.currency`). |
+| `403` | `insufficient_scope` | The key lacks the scope for this endpoint. |
+| `403` | `account_suspended` | The account is suspended and cannot send. |
+| `403` | `recipient_opted_out` | The recipient opted out of your keyword (or of the whole code). |
+| `403` | `no_two_way_service` | Sandbox: you need a two-way keyword first (pending is fine). |
+| `404` | `not_found` | Service, keyword, conversation, document or bin not found (or not yours). |
+| `409` | `service_not_active` | Sending needs an `active` or `past_due` keyword. |
+| `409` | `number_unavailable` | The short code is paused for sending. |
+| `409` | `ambiguous_keyword` | You hold the keyword on more than one code - pass `code` or `service_id`. |
+| `409` | `keyword_unavailable` | The keyword is taken or already requested on that country's shared codes. |
+| `409` | `duplicate_request` | You already have the same pending request. |
+| `409` | `invalid_state` | The service is already `cancelled` or `rejected`. |
+| `409` | `service_not_available` | Sandbox: the keyword is cancelled or rejected. |
+| `409` | `too_many_phones` / `duplicate_phone` / `too_many_bins` | Sandbox limits. |
+| `410` | `expired` | The request bin has expired. |
+| `413` | `message_too_long` | More than 10 segments (1,600 characters). |
+| `413` | `file_too_large` | KYC upload over 5 MB. |
+| `415` | `unsupported_type` | KYC uploads must be PDF, PNG, JPG or WEBP. |
+| `422` | `validation_error` | The request failed validation (`details.errors` lists fields). |
+| `422` | `country_unavailable` / `toll_free_unavailable` | Two-way (or toll free) is not offered in that country. |
+| `422` | `kyc_required` / `invalid_document` | No KYC document attached, or an unknown upload ID. |
+| `422` | `invalid_number` | `number_id` is not an active shared code in that country. |
+| `422` | `invalid_url` / `url_not_public` / `invalid_email` | A webhook URL or forwarding email is invalid or not public. |
+| `422` | `auto_reply_text_required` | Enabling auto-reply without text. |
+| `429` | `rate_limited` | Too many requests - back off and retry. |
+| `503` | `route_unavailable` | Sending from this code is temporarily unavailable. |
+
+## Related
+
+<Cards>
+  <Card title="Messages" href="/docs/api-reference/two-way/messages" description="Send from your keyword and list messages." />
+  <Card title="Webhooks" href="/docs/api-reference/two-way/webhooks" description="message.inbound, opt-out events, signatures and retries." />
+  <Card title="Sandbox" href="/docs/api-reference/two-way/sandbox" description="Simulated phones, request bins and the clock." />
+</Cards>

@@ -1,0 +1,177 @@
+---
+title: Sandbox & phone simulator
+description: Test a Two-Way SMS keyword end to end on simulated phones - the same matching as live traffic, signed sandbox webhooks, request bins and a fast-forward clock. Nothing is sent and nothing is charged.
+---
+
+The Two-Way sandbox lets you build your whole flow before your keyword is live. Simulated
+phones text your short code, messages are matched by **the same function live traffic
+uses**, your webhook receives signed payloads marked `"sandbox": true`, and your replies
+land back on the simulated phone.
+
+Open it at [sms.esmsafrica.io/two-way/sandbox](https://sms.esmsafrica.io/two-way/sandbox)
+(or the **Sandbox** button on any keyword card), or drive it over the
+[Sandbox API](/docs/api-reference/two-way/sandbox).
+
+<Callout title="Nothing real happens">
+The sandbox never sends an SMS, never charges your wallet, and never changes your live
+inbox, opt-out list, conversations or webhook log. It shows what live traffic **would**
+cost instead.
+</Callout>
+
+## Who can use it
+
+Any account with a Two-Way keyword that is `pending`, `active`, `past_due` or
+`suspended`. **Pending keywords work too**, so you can build while your request is in
+review. Until a code is assigned, the sandbox uses the shared code you asked for, else the
+country's first shared code, else a stand-in test code such as `TESTNG`.
+
+## The phone simulator
+
+The sandbox page shows a phone for each simulated number (up to 12, for example
+`+2348000000001`; any 7 to 15 digit number works, nothing is ever sent to it). Type a
+message, send it to the code, and the panel next to the phone shows:
+
+| Tab | What it does |
+|-----|--------------|
+| **Debug** | How the message was matched (`keyword`, `affinity`, `unmatched`, `stop`, `start`, `help`), the parsed keyword and `body_without_keyword`, encoding and segments, the conversation window and when it expires, what the live system would charge, notes explaining the decision, and the exact webhook payload with every delivery attempt. |
+| **Reply as server** | Send FROM your keyword to the phone, as your backend would. This opens the conversation window, so the phone's plain replies (`1`, `2`, `YES`) come back to you. |
+| **Scenarios** | One-click tests: *Start a conversation*, *Numbered menu* (sends a demo menu, then tap 1 / 2 / 3), *STOP then START*, *HELP*, *Expired affinity* (fast-forwards past the window, then replies `1`), *Unknown phone*, *Long / Unicode* (Swahili and emoji, to see segment counts) and *Two keywords, one code*. |
+| **Webhook** | Where sandbox webhooks go, a sandbox-only webhook URL, and request bins. |
+| **Guide** | The steps below. |
+
+## Test from your own server
+
+Point your backend at the sandbox with a **test API key** (`esms_test_`, created under
+**API Keys** with environment *Test (sandbox)*):
+
+- `POST /v1/two-way/messages` with an `esms_test_` key **always** goes to the sandbox: the
+  message lands on the simulated phone, nothing is sent or charged, and the response has
+  `"sandbox": true` and `would_cost`.
+- With a live key, add `"environment": "sandbox"` to the request body for the same effect.
+- The legacy `POST /v1/two-way/services/{id}/reply` behaves the same way.
+
+```bash
+curl -X POST "https://sms.esmsafrica.io/v1/two-way/messages" \
+  -H "Authorization: Bearer $ESMS_TEST_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"keyword": "CLINIC", "to": "+2348000000001", "text": "Reply 1 Emergency, 2 Maternity, 3 Pharmacy"}'
+```
+
+```json
+{
+  "id": "sbx_311",
+  "status": "delivered",
+  "sandbox": true,
+  "environment": "sandbox",
+  "segments": 1,
+  "encoding": "GSM7",
+  "cost": 0.0,
+  "would_cost": 0.0068,
+  "currency": "USD",
+  "service_id": 42,
+  "keyword": "CLINIC",
+  "code": "3450",
+  "to": "+2348000000001",
+  "conversation_id": 57,
+  "affinity_expires_at": "2026-10-15T09:30:00+00:00"
+}
+```
+
+To play the customer from code (for automated tests), post to
+[`POST /v1/two-way/sandbox/inbound`](/docs/api-reference/two-way/sandbox#simulate-an-inbound-message)
+with the phone and text. It returns the full debug record, including the webhook payload.
+The sandbox endpoints that change things (phones, inbound, bins, clock, settings, reset)
+need a key with the `two_way` scope; see [scopes](/docs/api-reference/two-way#authentication).
+
+## Sandbox webhooks
+
+Sandbox webhooks look exactly like live ones, plus:
+
+| Marker | Value |
+|--------|-------|
+| `"sandbox"` | `true` |
+| `"environment"` | `"sandbox"` |
+| `"livemode"` | `false` |
+| `"billed"` | `false` (nothing is ever charged) |
+| `"would_bill"` | `true` when live traffic would have been charged for this message |
+| Header `X-Esms-Environment` | `sandbox` |
+| Header `User-Agent` | `eSMS-Webhooks/1.0 (sandbox)` |
+
+They are **signed with your normal signing secret**, so you can test signature checks for
+real. They go to the first of:
+
+1. The **sandbox webhook URL** you set in the Webhook tab (or with
+   [`PUT /v1/two-way/sandbox/settings`](/docs/api-reference/two-way/sandbox#set-a-sandbox-webhook-url)),
+2. your keyword's webhook URL,
+3. your account MO URL in **Settings > Webhooks**.
+
+A sandbox webhook URL must be a public `http(s)` address (private, loopback and
+cloud-metadata addresses are refused) or one of your request bins. Failed sandbox
+deliveries are retried quickly, after 1 and 3 seconds, so you see the result on screen;
+live webhooks use the 1m / 5m / 30m / 2h / 8h schedule.
+
+<Callout type="warn">
+In production, ignore (or reject) any webhook with `"sandbox": true` or the header
+`X-Esms-Environment: sandbox`, so test traffic can never trigger real actions.
+</Callout>
+
+## Request bins
+
+No server yet? Create a **request bin**: a temporary URL we host that captures exactly what
+your webhook would receive (headers and body). Set it as your sandbox webhook URL, text the
+code from a simulated phone, and inspect the captured requests in the Webhook tab or with
+[`GET /v1/two-way/sandbox/bins/{token}/requests`](/docs/api-reference/two-way/sandbox#list-captured-requests).
+A bin lives 24 hours and keeps the last 50 requests. Its URL accepts a `POST` from anything,
+so you can also point other tools at it.
+
+## Testing the conversation window
+
+Conversation affinity lasts 72 hours from the last message your keyword sent to a phone.
+Rather than wait, **fast-forward the sandbox clock** (Scenarios > *Expired affinity*, or
+[`POST /v1/two-way/sandbox/clock`](/docs/api-reference/two-way/sandbox#fast-forward-the-clock)
+with `advance_hours`). Only your sandbox clock moves. **Reset** clears your sandbox
+messages, conversations, opt-outs and clock.
+
+## Isolation and other keywords
+
+- Everything you do lives in your own sandbox. Nobody else (other customers, admins or
+  support) sees it.
+- Matching on a shared code considers every live keyword on it, exactly like production.
+  If a simulated phone texts another business's keyword, the debug record says it belongs
+  to another customer on this code; nothing about them is shown and no webhook is sent.
+- Sandbox STOP and START only change the sandbox opt-out list. Sends to a phone that opted
+  out in the sandbox are refused, just like live.
+- Sandbox sends use the live checks: the number must be in the code's country, at most
+  1,600 characters and 10 segments, and not opted out.
+
+## Limits
+
+| Limit | Value |
+|-------|-------|
+| Simulated phones | 12 per account |
+| Message length | 1,600 characters |
+| Simulated inbound and sandbox sends | 120 per minute each |
+| Request bins | 3 at a time, 10 created per hour, 24 hour lifetime, last 50 requests, 16 KB per body |
+| Clock fast-forward | Up to 60 days ahead |
+| Webhook retries | 2 quick retries (1s, 3s), 10 second timeout |
+
+## Step by step
+
+1. **Pick your keyword** at the top of the sandbox page.
+2. **Text it from the phone.** Type `CLINIC` and send. The Debug tab shows how it was
+   matched, the text without the keyword and what live traffic would cost.
+3. **Receive it on your server.** Set a sandbox webhook URL or create a request bin. Verify
+   `X-Webhook-Signature` exactly as in production.
+4. **Reply.** Call `POST /v1/two-way/messages` with your `esms_test_` key (or use
+   *Reply as server*). The reply lands on the phone and opens the conversation window.
+5. **Click through the menu.** Send a numbered menu and tap `1`, `2` or `3` on the phone.
+   Bare numbers route to you by conversation affinity.
+6. **Try the edge cases** in Scenarios: STOP / START, HELP, an expired conversation, a
+   stranger's number, long Unicode messages.
+7. **Go live.** Switch to an `esms_live_` key and ignore webhooks marked `"sandbox": true`.
+
+<Cards>
+  <Card title="Sandbox API reference" href="/docs/api-reference/two-way/sandbox" description="Phones, inbound simulation, sends, clock, settings, reset and request bins." />
+  <Card title="Worked example" href="/docs/two-way/example" description="A healthcare navigation flow you can run in the sandbox." />
+  <Card title="Two-Way SMS guide" href="/docs/two-way/overview" description="How keywords, matching, opt-out and billing work." />
+</Cards>

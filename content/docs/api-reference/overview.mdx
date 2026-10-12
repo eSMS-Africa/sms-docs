@@ -113,6 +113,19 @@ Branch on `error.code`; `detail` is kept for backward compatibility (for `422` v
 | `GET` | `/sender-ids` | List your sender IDs |
 | `GET` | `/sender-ids/fees` | Registration fees by country (no auth) |
 
+### Two-Way SMS
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `POST` | `/two-way/messages` | Send FROM your keyword's short code |
+| `GET` | `/two-way/messages` | List inbound / outbound two-way messages |
+| `GET` | `/two-way/conversations` | Conversations for a keyword |
+| `GET` | `/two-way/keywords` | Your keywords and "Text X to Y" instructions |
+| `POST` | `/two-way/services` | Request a keyword |
+| `POST` | `/two-way/sandbox/inbound` | Simulate a phone texting your keyword |
+
+Full list: [Two-Way SMS API](/docs/api-reference/two-way).
+
 ### API Keys
 
 | Method | Path | Description |

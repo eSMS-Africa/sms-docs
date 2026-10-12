@@ -1,0 +1,1669 @@
+---
+title: Keywords & services
+description: Pricing, countries, keyword availability, requesting a keyword with KYC, the service object, updating webhook / auto-reply / HELP text, cancelling, opt-outs, usage stats, billing history and CSV export.
+---
+
+Each keyword you hold is a **service** with a numeric `service_id`. A service is created
+when you request a keyword and moves through `pending` (in review), `active`, `past_due`
+(monthly fee unpaid, retried daily), `suspended` (inbound stored, not forwarded), and
+finally `cancelled` or `rejected`.
+
+## Get pricing
+
+```
+GET https://sms.esmsafrica.io/v1/two-way/pricing
+```
+
+Public, no authentication, cacheable for 5 minutes. One row per country where Two-Way SMS
+is offered, in USD.
+
+- `availability: "available"` - request it yourself. Currently Nigeria (NG), Ghana (GH),
+  Madagascar (MG), Kenya (KE), Uganda (UG), Zambia (ZM), Ethiopia (ET) and
+  Cote d'Ivoire (CI).
+- `availability: "on_request"` - every other country. Send a request and our team confirms
+  availability and pricing. These rows have `null` prices and `is_available: false`.
+
+```json
+{
+  "currency": "USD",
+  "countries": [
+    {
+      "availability": "available",
+      "country_code": "NG",
+      "country_name": "Nigeria",
+      "setup_fee_usd": 100.0,
+      "monthly_fee_usd": 50.0,
+      "shared_keyword_monthly_fee_usd": 50.0,
+      "inbound_price_usd": 0.0068,
+      "outbound_price_usd": 0.0068,
+      "sms_basic_price_usd": 0.0068,
+      "price_source": "basic",
+      "toll_free_available": false,
+      "toll_free_inbound_price_usd": null,
+      "networks": ["MTN", "Airtel", "Glo", "9mobile"],
+      "is_available": true
+    }
+  ]
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `setup_fee_usd` | One-time setup fee, charged on approval. |
+| `shared_keyword_monthly_fee_usd` | Monthly fee for a keyword on a shared code (VAT inclusive). Charged on approval, then every 30 days. |
+| `monthly_fee_usd` | Monthly fee for a dedicated code (arranged by sales). |
+| `inbound_price_usd` / `outbound_price_usd` | Effective price per inbound / outbound SMS segment. |
+| `sms_basic_price_usd` | The country's Basic SMS price, which per-SMS prices follow by default. |
+| `price_source` | `basic` (per-SMS prices follow the Basic SMS price) or `custom` (a custom two-way price is set). |
+| `toll_free_available` / `toll_free_inbound_price_usd` | Whether toll-free codes are offered, and their inbound price (`null` = same as `inbound_price_usd`). |
+| `networks` | Mobile networks served. |
+
+Prices in examples are illustrative; read live values from this endpoint.
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl "https://sms.esmsafrica.io/v1/two-way/pricing"
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/v1/two-way/pricing");
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import requests
+
+res = requests.get(
+    "https://sms.esmsafrica.io/v1/two-way/pricing",
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/pricing");
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+)
+
+func main() {
+	req, _ := http.NewRequest("GET", "https://sms.esmsafrica.io/v1/two-way/pricing", nil)
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## List countries
+
+```
+GET https://sms.esmsafrica.io/v1/two-way/countries
+```
+
+The pricing rows plus what you need to request a keyword: KYC requirements, notes and the
+shared codes in each country (use a code's `id` as `number_id` to ask for that code).
+Scope: `two_way` or `query`.
+
+```json
+{
+  "countries": [
+    {
+      "country_code": "NG",
+      "country_name": "Nigeria",
+      "availability": "available",
+      "setup_fee_usd": 100.0,
+      "shared_keyword_monthly_fee_usd": 50.0,
+      "inbound_price_usd": 0.0068,
+      "outbound_price_usd": 0.0068,
+      "kyc_requirements": "Certificate of incorporation or business registration; tax certificate; ...",
+      "notes": null,
+      "shared_number_available": true,
+      "shared_numbers": [{ "id": 3, "number": "3450" }],
+      "dedicated_number_available": false
+    }
+  ]
+}
+```
+
+(Abbreviated - each row also has every field from [Get pricing](#get-pricing).)
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl "https://sms.esmsafrica.io/v1/two-way/countries" \
+  -H "Authorization: Bearer $ESMS_API_KEY"
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/v1/two-way/countries", {
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}` },
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.get(
+    "https://sms.esmsafrica.io/v1/two-way/countries",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/countries");
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY")],
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+)
+
+func main() {
+	req, _ := http.NewRequest("GET", "https://sms.esmsafrica.io/v1/two-way/countries", nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## List your keywords
+
+```
+GET https://sms.esmsafrica.io/v1/two-way/keywords
+```
+
+One row per keyword with the copyable end-user instruction. `code` and `instructions` are
+`null` until a code is assigned. Rejected requests are left out. Scope: `two_way` or `query`.
+
+```json
+{
+  "data": [
+    {
+      "service_id": 42,
+      "keyword": "CLINIC",
+      "code": "3450",
+      "type": "shared",
+      "country_code": "NG",
+      "status": "active",
+      "instructions": "Text CLINIC to 3450",
+      "monthly_fee_usd": 50.0,
+      "next_billing_at": "2026-11-06T09:00:00+00:00",
+      "webhook_url": "https://example.com/hooks/esms"
+    }
+  ]
+}
+```
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl "https://sms.esmsafrica.io/v1/two-way/keywords" \
+  -H "Authorization: Bearer $ESMS_API_KEY"
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/v1/two-way/keywords", {
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}` },
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.get(
+    "https://sms.esmsafrica.io/v1/two-way/keywords",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/keywords");
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY")],
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+)
+
+func main() {
+	req, _ := http.NewRequest("GET", "https://sms.esmsafrica.io/v1/two-way/keywords", nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## Check a keyword
+
+```
+GET https://sms.esmsafrica.io/v1/two-way/keywords/check
+```
+
+Whether a keyword is free. Pass `country_code` (free on any shared code in the country) or
+`number` (free on that shared code). Keywords are 2 to 20 letters or digits with at least
+one letter; STOP, START, HELP, INFO and their synonyms are reserved. Scope: `two_way` or
+`query`.
+
+| Parameter | Description |
+|-----------|-------------|
+| `keyword` | Required. Any case. |
+| `country_code` | ISO code, e.g. `NG`. |
+| `number` | A shared short code, e.g. `3450`. |
+
+```json
+{ "keyword": "CLINIC", "available": true, "reason": null }
+```
+
+```json
+{ "keyword": "HELP", "available": false, "reason": "HELP is reserved and cannot be used as a keyword" }
+```
+
+Other `reason` values: *Already taken on this short code*, *Already taken on every shared
+short code in this country*, *Already requested by another customer*, *Keywords must be
+2-20 letters or digits (no spaces or symbols)*, *Keywords must contain at least one letter
+(numbers alone are reserved for menu replies)*.
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl "https://sms.esmsafrica.io/v1/two-way/keywords/check?keyword=CLINIC&country_code=NG" \
+  -H "Authorization: Bearer $ESMS_API_KEY"
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const params = new URLSearchParams({
+  keyword: "CLINIC",
+  country_code: "NG",
+});
+const res = await fetch(`https://sms.esmsafrica.io/v1/two-way/keywords/check?${params}`, {
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}` },
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.get(
+    "https://sms.esmsafrica.io/v1/two-way/keywords/check",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    params={
+        "keyword": "CLINIC",
+        "country_code": "NG",
+    },
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$query = http_build_query([
+    "keyword" => "CLINIC",
+    "country_code" => "NG",
+]);
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/keywords/check?" . $query);
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY")],
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+)
+
+func main() {
+	q := url.Values{}
+	q.Set("keyword", "CLINIC")
+	q.Set("country_code", "NG")
+	req, _ := http.NewRequest("GET", "https://sms.esmsafrica.io/v1/two-way/keywords/check?" + q.Encode(), nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## Upload a KYC document
+
+```
+POST https://sms.esmsafrica.io/v1/two-way/kyc-documents
+```
+
+Upload one file (multipart field `file`): PDF, PNG, JPG or WEBP, up to 5 MB. Pass the
+returned `id` in `kyc_document_ids` when you [request a keyword](#request-a-keyword).
+Download your own document later with `GET /v1/two-way/kyc-documents/{id}`. Scope:
+`two_way`.
+
+```json
+{
+  "id": 7,
+  "filename": "certificate.pdf",
+  "content_type": "application/pdf",
+  "size": 183204,
+  "url": "/api/two-way/kyc-documents/7"
+}
+```
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl -X POST "https://sms.esmsafrica.io/v1/two-way/kyc-documents" \
+  -H "Authorization: Bearer $ESMS_API_KEY" \
+  -F "file=@certificate.pdf;type=application/pdf"
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+import { readFile } from "node:fs/promises";
+
+const form = new FormData();
+form.append("file", new Blob([await readFile("certificate.pdf")], { type: "application/pdf" }), "certificate.pdf");
+const res = await fetch("https://sms.esmsafrica.io/v1/two-way/kyc-documents", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}` },
+  body: form,
+});
+console.log(res.status, await res.json());
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+with open("certificate.pdf", "rb") as f:
+    res = requests.post(
+        "https://sms.esmsafrica.io/v1/two-way/kyc-documents",
+        headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+        files={"file": ("certificate.pdf", f, "application/pdf")},
+        timeout=30,
+    )
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/kyc-documents");
+curl_setopt_array($ch, [
+    CURLOPT_POST => true,
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY")],
+    CURLOPT_POSTFIELDS => ["file" => new CURLFile("certificate.pdf", "application/pdf")],
+]);
+print_r(json_decode(curl_exec($ch), true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"net/textproto"
+	"os"
+)
+
+func main() {
+	data, _ := os.ReadFile("certificate.pdf")
+	var buf bytes.Buffer
+	w := multipart.NewWriter(&buf)
+	h := make(textproto.MIMEHeader)
+	h.Set("Content-Disposition", `form-data; name="file"; filename="certificate.pdf"`)
+	h.Set("Content-Type", "application/pdf")
+	part, _ := w.CreatePart(h)
+	part.Write(data)
+	w.Close()
+
+	req, _ := http.NewRequest("POST", "https://sms.esmsafrica.io/v1/two-way/kyc-documents", &buf)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	req.Header.Set("Content-Type", w.FormDataContentType())
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## Request a keyword
+
+```
+POST https://sms.esmsafrica.io/v1/two-way/services
+```
+
+Creates a `pending` request for review. **Nothing is charged until it is approved**; then
+the setup fee and first month are charged from your wallet. In an `on_request` country the
+request is an enquiry (`on_request: true`, KYC optional): our team confirms availability and
+pricing first. Scope: `two_way`.
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `country_code` | string | Yes | ISO code, e.g. `NG`. |
+| `type` | string | Yes | `"shared"` for a keyword on a shared code. (Dedicated codes are arranged by sales.) |
+| `keyword` | string | Yes for `shared` | 2 to 20 letters or digits, at least one letter. |
+| `number_id` | integer | No | A preferred shared code (`id` from [List countries](#list-countries)). Omit and we assign one. |
+| `toll_free` | boolean | No | Toll-free code where offered. Default `false`. |
+| `company_name` | string | Yes | 2 to 200 characters. |
+| `use_case` | string | Yes | 10 to 4,000 characters. What customers will text and what you will reply, with samples. |
+| `kyc_document_ids` | integer[] | Yes, unless `kyc_document_urls` (optional on request) | IDs from [Upload a KYC document](#upload-a-kyc-document). Up to 10. |
+| `kyc_document_urls` | string[] | No | Links to documents instead of uploads. Up to 10. |
+| `webhook_url` | string | No | Where this keyword's webhooks go (https recommended). |
+
+Returns `201` with the [service object](#the-service-object). Errors:
+`409 keyword_unavailable`, `409 duplicate_request`, `422 country_unavailable`,
+`422 kyc_required`, `422 invalid_document`, `422 invalid_number`.
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl -X POST "https://sms.esmsafrica.io/v1/two-way/services" \
+  -H "Authorization: Bearer $ESMS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"country_code": "NG", "type": "shared", "keyword": "CLINIC", "company_name": "Example Health Ltd", "use_case": "Patient navigation: patients text CLINIC to 3450 and get a numbered menu (1 Emergency, 2 Maternity, 3 Pharmacy, 4 Talk to a nurse).", "kyc_document_ids": [7], "webhook_url": "https://example.com/hooks/esms"}'
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/v1/two-way/services", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}`, "Content-Type": "application/json" },
+  body: JSON.stringify({
+    country_code: "NG",
+    type: "shared",
+    keyword: "CLINIC",
+    company_name: "Example Health Ltd",
+    use_case: "Patient navigation: patients text CLINIC to 3450 and get a numbered menu (1 Emergency, 2 Maternity, 3 Pharmacy, 4 Talk to a nurse).",
+    kyc_document_ids: [7],
+    webhook_url: "https://example.com/hooks/esms",
+  }),
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.post(
+    "https://sms.esmsafrica.io/v1/two-way/services",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    json={
+        "country_code": "NG",
+        "type": "shared",
+        "keyword": "CLINIC",
+        "company_name": "Example Health Ltd",
+        "use_case": "Patient navigation: patients text CLINIC to 3450 and get a numbered menu (1 Emergency, 2 Maternity, 3 Pharmacy, 4 Talk to a nurse).",
+        "kyc_document_ids": [7],
+        "webhook_url": "https://example.com/hooks/esms",
+    },
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/services");
+curl_setopt_array($ch, [
+    CURLOPT_CUSTOMREQUEST => "POST",
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY"), "Content-Type: application/json"],
+    CURLOPT_POSTFIELDS => json_encode([
+        "country_code" => "NG",
+        "type" => "shared",
+        "keyword" => "CLINIC",
+        "company_name" => "Example Health Ltd",
+        "use_case" => "Patient navigation: patients text CLINIC to 3450 and get a numbered menu (1 Emergency, 2 Maternity, 3 Pharmacy, 4 Talk to a nurse).",
+        "kyc_document_ids" => [7],
+        "webhook_url" => "https://example.com/hooks/esms",
+    ]),
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+)
+
+func main() {
+	body := []byte(`{"country_code": "NG", "type": "shared", "keyword": "CLINIC", "company_name": "Example Health Ltd", "use_case": "Patient navigation: patients text CLINIC to 3450 and get a numbered menu (1 Emergency, 2 Maternity, 3 Pharmacy, 4 Talk to a nurse).", "kyc_document_ids": [7], "webhook_url": "https://example.com/hooks/esms"}`)
+	req, _ := http.NewRequest("POST", "https://sms.esmsafrica.io/v1/two-way/services", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## The service object
+
+```json
+{
+  "id": 42,
+  "country_code": "NG",
+  "country_name": "Nigeria",
+  "type": "shared",
+  "keyword": "CLINIC",
+  "toll_free": false,
+  "status": "active",
+  "on_request": false,
+  "number": "3450",
+  "instructions": "Text CLINIC to 3450",
+  "use_case": "Patient navigation: patients text CLINIC to 3450 ...",
+  "company_name": "Example Health Ltd",
+  "kyc_document_urls": [],
+  "kyc_documents": [{ "id": 7, "filename": "certificate.pdf", "url": "/api/two-way/kyc-documents/7" }],
+  "webhook_url": "https://example.com/hooks/esms",
+  "effective_webhook_url": "https://example.com/hooks/esms",
+  "webhook_signing": {
+    "header": "X-Webhook-Signature",
+    "algorithm": "HMAC-SHA256",
+    "format": "sha256=<hex of raw body>",
+    "secret_hint": "whsec_...9f3a"
+  },
+  "auto_reply_enabled": false,
+  "auto_reply_text": null,
+  "forward_email": null,
+  "help_text": "CLINIC by Example Health: text CLINIC to 3450 for the menu. Reply CLINIC STOP to opt out.",
+  "strip_keyword": false,
+  "awaiting_payment": false,
+  "amount_due_usd": null,
+  "pending_charge_usd": null,
+  "fees_waived": false,
+  "requested_number": "3450",
+  "rejection_reason": null,
+  "suspend_reason": null,
+  "fees": { "setup_fee_usd": 100.0, "monthly_fee_usd": 50.0, "inbound_price_usd": 0.0068, "outbound_price_usd": 0.0068 },
+  "setup_charged": true,
+  "activated_at": "2026-10-07T09:00:00+00:00",
+  "next_billing_at": "2026-11-06T09:00:00+00:00",
+  "past_due_since": null,
+  "suspended_at": null,
+  "cancelled_at": null,
+  "created_at": "2026-10-06T14:12:00+00:00",
+  "timeline": [
+    { "key": "requested", "label": "Requested", "at": "2026-10-06T14:12:00+00:00", "state": "done" },
+    { "key": "review", "label": "Approved", "at": "2026-10-07T09:00:00+00:00", "state": "done" },
+    { "key": "live", "label": "Live", "at": "2026-10-07T09:00:00+00:00", "state": "done" },
+    { "key": "renewal", "label": "Next renewal", "at": "2026-11-06T09:00:00+00:00", "state": "upcoming" }
+  ],
+  "stats": { "inbound_total": 1280, "inbound_30d": 412, "unbilled": 0 }
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `status` | `pending`, `active`, `past_due`, `suspended`, `cancelled` or `rejected`. |
+| `number` / `instructions` | The assigned short code and the end-user instruction. `null` until assigned (shown as soon as the code is reserved for you, including while awaiting payment). |
+| `effective_webhook_url` | Where webhooks actually go: `webhook_url`, else your account MO URL. |
+| `webhook_signing` | How webhooks are signed; `secret_hint` is a masked hint of your account signing secret. |
+| `auto_reply_enabled` / `auto_reply_text` | Automatic reply to each inbound message (at most one per phone per minute, charged as an outbound message). |
+| `forward_email` | Each inbound message is also emailed here. |
+| `help_text` | Your reply to `HELP` / `CLINIC HELP` (sent free). `null` uses the default. |
+| `strip_keyword` | When `true`, the webhook `text` of keyword matches has the keyword removed (`raw_text` is unchanged). |
+| `awaiting_payment` / `amount_due_usd` | Approved, but your wallet could not cover setup and the first month. Top up and it activates automatically. |
+| `pending_charge_usd` | Fees invoiced to you; collected automatically from your next top-up. |
+| `fees` | The prices that apply to this keyword. `null` values in an on-request country until quoted. |
+| `next_billing_at` | Next monthly fee date. |
+| `timeline` | Display steps (`state`: `done`, `current`, `upcoming` or `failed`). |
+| `stats` | Inbound totals and how many inbound messages are unbilled because of low balance. |
+
+## List services
+
+```
+GET https://sms.esmsafrica.io/v1/two-way/services
+```
+
+All your services (every status), newest first: `{ "services": [ <service object>, ... ] }`.
+Scope: `two_way` or `query`.
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl "https://sms.esmsafrica.io/v1/two-way/services" \
+  -H "Authorization: Bearer $ESMS_API_KEY"
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/v1/two-way/services", {
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}` },
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.get(
+    "https://sms.esmsafrica.io/v1/two-way/services",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/services");
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY")],
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+)
+
+func main() {
+	req, _ := http.NewRequest("GET", "https://sms.esmsafrica.io/v1/two-way/services", nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## Get a service
+
+```
+GET https://sms.esmsafrica.io/v1/two-way/services/{service_id}
+```
+
+Returns one [service object](#the-service-object). Scope: `two_way` or `query`.
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl "https://sms.esmsafrica.io/v1/two-way/services/42" \
+  -H "Authorization: Bearer $ESMS_API_KEY"
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/v1/two-way/services/42", {
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}` },
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.get(
+    "https://sms.esmsafrica.io/v1/two-way/services/42",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/services/42");
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY")],
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+)
+
+func main() {
+	req, _ := http.NewRequest("GET", "https://sms.esmsafrica.io/v1/two-way/services/42", nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## Update a keyword
+
+```
+PATCH https://sms.esmsafrica.io/v1/two-way/services/{service_id}
+```
+
+Send only the fields you want to change. Not allowed on `cancelled` or `rejected`
+services. Returns the updated [service object](#the-service-object). Scope: `two_way`.
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `webhook_url` | string \| null | This keyword's webhook. `null` or `""` falls back to your account MO URL. |
+| `help_text` | string \| null | HELP reply, up to 480 characters. `null` restores the default. |
+| `auto_reply_text` | string \| null | Auto-reply text, up to 480 characters. |
+| `auto_reply_enabled` | boolean | Turn the auto-reply on or off (needs text). |
+| `strip_keyword` | boolean | Remove the keyword from the webhook `text` of keyword matches. |
+| `forward_email` | string \| null | Email a copy of each inbound message. |
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl -X PATCH "https://sms.esmsafrica.io/v1/two-way/services/42" \
+  -H "Authorization: Bearer $ESMS_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"help_text": "CLINIC by Example Health: text CLINIC to 3450 for the menu. Reply CLINIC STOP to opt out.", "auto_reply_text": "Thanks - we got your message and will reply shortly.", "auto_reply_enabled": true, "strip_keyword": true}'
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/v1/two-way/services/42", {
+  method: "PATCH",
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}`, "Content-Type": "application/json" },
+  body: JSON.stringify({
+    help_text: "CLINIC by Example Health: text CLINIC to 3450 for the menu. Reply CLINIC STOP to opt out.",
+    auto_reply_text: "Thanks - we got your message and will reply shortly.",
+    auto_reply_enabled: true,
+    strip_keyword: true,
+  }),
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.patch(
+    "https://sms.esmsafrica.io/v1/two-way/services/42",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    json={
+        "help_text": "CLINIC by Example Health: text CLINIC to 3450 for the menu. Reply CLINIC STOP to opt out.",
+        "auto_reply_text": "Thanks - we got your message and will reply shortly.",
+        "auto_reply_enabled": True,
+        "strip_keyword": True,
+    },
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/services/42");
+curl_setopt_array($ch, [
+    CURLOPT_CUSTOMREQUEST => "PATCH",
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY"), "Content-Type: application/json"],
+    CURLOPT_POSTFIELDS => json_encode([
+        "help_text" => "CLINIC by Example Health: text CLINIC to 3450 for the menu. Reply CLINIC STOP to opt out.",
+        "auto_reply_text" => "Thanks - we got your message and will reply shortly.",
+        "auto_reply_enabled" => true,
+        "strip_keyword" => true,
+    ]),
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"bytes"
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+)
+
+func main() {
+	body := []byte(`{"help_text": "CLINIC by Example Health: text CLINIC to 3450 for the menu. Reply CLINIC STOP to opt out.", "auto_reply_text": "Thanks - we got your message and will reply shortly.", "auto_reply_enabled": true, "strip_keyword": true}`)
+	req, _ := http.NewRequest("PATCH", "https://sms.esmsafrica.io/v1/two-way/services/42", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	req.Header.Set("Content-Type", "application/json")
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## Cancel a keyword
+
+```
+POST https://sms.esmsafrica.io/v1/two-way/services/{service_id}/cancel
+```
+
+Stops future monthly fees and frees the keyword. Fees already charged are not refunded,
+and invoiced-but-unpaid fees stop being collected. Returns the updated service. Scope:
+`two_way`.
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl -X POST "https://sms.esmsafrica.io/v1/two-way/services/42/cancel" \
+  -H "Authorization: Bearer $ESMS_API_KEY"
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/v1/two-way/services/42/cancel", {
+  method: "POST",
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}` },
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.post(
+    "https://sms.esmsafrica.io/v1/two-way/services/42/cancel",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/services/42/cancel");
+curl_setopt_array($ch, [
+    CURLOPT_CUSTOMREQUEST => "POST",
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY")],
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+)
+
+func main() {
+	req, _ := http.NewRequest("POST", "https://sms.esmsafrica.io/v1/two-way/services/42/cancel", nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## List opt-outs
+
+```
+GET https://sms.esmsafrica.io/v1/two-way/services/{service_id}/opt-outs
+```
+
+Phones that cannot currently be messaged from this keyword. `scope` is `service` (they
+texted `CLINIC STOP`) or `global` (they texted a bare `STOP` to the code, which covers every
+keyword on it). They opt back in by texting `CLINIC START` or `START`. Scope: `two_way` or
+`query`.
+
+| Parameter | Description |
+|-----------|-------------|
+| `limit` | 1 to 5,000, default 500. |
+
+```json
+{
+  "data": [
+    { "phone": "+2348012345678", "scope": "service", "created_at": "2026-10-12T09:31:00+00:00" }
+  ]
+}
+```
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl "https://sms.esmsafrica.io/v1/two-way/services/42/opt-outs" \
+  -H "Authorization: Bearer $ESMS_API_KEY"
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/v1/two-way/services/42/opt-outs", {
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}` },
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.get(
+    "https://sms.esmsafrica.io/v1/two-way/services/42/opt-outs",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/services/42/opt-outs");
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY")],
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+)
+
+func main() {
+	req, _ := http.NewRequest("GET", "https://sms.esmsafrica.io/v1/two-way/services/42/opt-outs", nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## Usage stats
+
+```
+GET https://sms.esmsafrica.io/v1/two-way/services/{service_id}/stats
+```
+
+Totals over the last `days` (1 to 365, default 30) and a daily series. Scope: `two_way` or
+`query`.
+
+```json
+{
+  "days": 30,
+  "totals": {
+    "inbound": 412,
+    "outbound": 455,
+    "inbound_cost": 2.8016,
+    "outbound_cost": 3.094,
+    "unique_phones": 139,
+    "unbilled": 0,
+    "matched_by": { "keyword": 151, "affinity": 259, "dedicated": 0, "admin": 2 },
+    "opt_outs": 4,
+    "conversations": 162
+  },
+  "daily": [
+    { "date": "2026-10-11", "inbound": 18, "outbound": 21 },
+    { "date": "2026-10-12", "inbound": 25, "outbound": 27 }
+  ]
+}
+```
+
+`matched_by` shows how many inbound messages reached you by keyword versus by conversation
+affinity, which tells you how often customers answer menus with plain replies.
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl "https://sms.esmsafrica.io/v1/two-way/services/42/stats?days=30" \
+  -H "Authorization: Bearer $ESMS_API_KEY"
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const params = new URLSearchParams({
+  days: "30",
+});
+const res = await fetch(`https://sms.esmsafrica.io/v1/two-way/services/42/stats?${params}`, {
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}` },
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.get(
+    "https://sms.esmsafrica.io/v1/two-way/services/42/stats",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    params={
+        "days": 30,
+    },
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$query = http_build_query([
+    "days" => 30,
+]);
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/services/42/stats?" . $query);
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY")],
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+)
+
+func main() {
+	q := url.Values{}
+	q.Set("days", "30")
+	req, _ := http.NewRequest("GET", "https://sms.esmsafrica.io/v1/two-way/services/42/stats?" + q.Encode(), nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## Billing history
+
+```
+GET https://sms.esmsafrica.io/v1/two-way/services/{service_id}/billing
+```
+
+Fee status and every setup / monthly charge for this keyword. Scope: `two_way` or `query`.
+
+```json
+{
+  "status": "active",
+  "monthly_fee_usd": 50.0,
+  "setup_fee_usd": 100.0,
+  "next_billing_at": "2026-11-06T09:00:00+00:00",
+  "current_period_start": "2026-10-07T09:00:00+00:00",
+  "past_due_since": null,
+  "suspends_at": null,
+  "pending_charge_usd": null,
+  "pending_charge_since": null,
+  "awaiting_payment_usd": null,
+  "fees_waived": false,
+  "charges": [
+    { "kind": "monthly", "period": "2026-10-07", "amount_usd": 50.0, "status": "charged", "created_at": "2026-10-07T09:00:00+00:00" },
+    { "kind": "setup", "period": "setup", "amount_usd": 100.0, "status": "charged", "created_at": "2026-10-07T09:00:00+00:00" }
+  ]
+}
+```
+
+`suspends_at` is set while the keyword is `past_due`: the moment it will be suspended if the
+fee is still unpaid (7 days after it became past due).
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl "https://sms.esmsafrica.io/v1/two-way/services/42/billing" \
+  -H "Authorization: Bearer $ESMS_API_KEY"
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch("https://sms.esmsafrica.io/v1/two-way/services/42/billing", {
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}` },
+});
+const data = await res.json();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.get(
+    "https://sms.esmsafrica.io/v1/two-way/services/42/billing",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    timeout=15,
+)
+print(res.status_code, res.json())
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/services/42/billing");
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY")],
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL;
+print_r(json_decode($body, true));
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"os"
+)
+
+func main() {
+	req, _ := http.NewRequest("GET", "https://sms.esmsafrica.io/v1/two-way/services/42/billing", nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## Export messages (CSV)
+
+```
+GET https://sms.esmsafrica.io/v1/two-way/services/{service_id}/export.csv
+```
+
+Inbound and outbound messages for this keyword, oldest first, up to 50,000 rows. Optional
+`since` / `until` (ISO 8601). Columns: `created_at, direction, phone, code, keyword, text,
+matched_by, status, segments, billed, cost, message_id`. Scope: `two_way` or `query`.
+
+<Tabs items={["cURL", "Node.js", "Python", "PHP", "Go"]}>
+<Tab value="cURL">
+
+```bash
+curl "https://sms.esmsafrica.io/v1/two-way/services/42/export.csv?since=2026-10-01" \
+  -H "Authorization: Bearer $ESMS_API_KEY" \
+  -o export.csv
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const params = new URLSearchParams({
+  since: "2026-10-01",
+});
+const res = await fetch(`https://sms.esmsafrica.io/v1/two-way/services/42/export.csv?${params}`, {
+  headers: { Authorization: `Bearer ${process.env.ESMS_API_KEY}` },
+});
+const data = await res.text();
+console.log(res.status, data);
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os
+
+import requests
+
+res = requests.get(
+    "https://sms.esmsafrica.io/v1/two-way/services/42/export.csv",
+    headers={"Authorization": f"Bearer {os.environ['ESMS_API_KEY']}"},
+    params={
+        "since": "2026-10-01",
+    },
+    timeout=15,
+)
+print(res.status_code, res.text)
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+<?php
+$query = http_build_query([
+    "since" => "2026-10-01",
+]);
+$ch = curl_init("https://sms.esmsafrica.io/v1/two-way/services/42/export.csv?" . $query);
+curl_setopt_array($ch, [
+    CURLOPT_RETURNTRANSFER => true,
+    CURLOPT_HTTPHEADER => ["Authorization: Bearer " . getenv("ESMS_API_KEY")],
+]);
+$body = curl_exec($ch);
+$status = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+curl_close($ch);
+echo $status . PHP_EOL . $body;
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+package main
+
+import (
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+)
+
+func main() {
+	q := url.Values{}
+	q.Set("since", "2026-10-01")
+	req, _ := http.NewRequest("GET", "https://sms.esmsafrica.io/v1/two-way/services/42/export.csv?" + q.Encode(), nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+	res, err := http.DefaultClient.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+	out, _ := io.ReadAll(res.Body)
+	fmt.Println(res.Status, string(out))
+}
+```
+
+</Tab>
+</Tabs>
+
+## Related
+
+<Cards>
+  <Card title="Two-Way SMS guide" href="/docs/two-way/overview" description="How keywords, matching, opt-out and billing work." />
+  <Card title="Messages" href="/docs/api-reference/two-way/messages" description="Send from your keyword and list messages." />
+</Cards>
