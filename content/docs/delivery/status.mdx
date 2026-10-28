@@ -18,6 +18,7 @@ Every message goes through a series of status changes from the moment it is subm
 | `sent` | Accepted by the carrier (en route to handset) |
 | `delivered` | Confirmed delivered to the recipient's handset |
 | `failed` | Delivery failed. See `error_code` for reason |
+| `unknown` | Confirming: a gateway timeout is being confirmed with the network (shown as Confirming in the dashboard). Resolves to `sent`, or to `failed` with an automatic refund, within about 10 minutes. Not retryable meanwhile |
 | `retrying` | Failed; system is automatically retrying |
 | `scheduled` | Waiting for its scheduled send time |
 
@@ -75,7 +76,7 @@ GET /api/messages?page=0&limit=20&status=delivered
 |-------------|-------------|
 | `page` | 0-indexed page number (default `0`) |
 | `limit` | Results per page, 1–100 (default `20`) |
-| `status` | Filter by status: `queued`, `scheduled`, `submitted`, `sent`, `delivered`, `retrying`, `failed` |
+| `status` | Filter by status: `queued`, `scheduled`, `submitted`, `sent`, `delivered`, `unknown`, `retrying`, `failed` |
 | `to`, `batch_id`, `date_from`, `date_to`, `environment` | Optional filters - see the [Messages API](/docs/api-reference/messages) |
 
 ## Manual retry
