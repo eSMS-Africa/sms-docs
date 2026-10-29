@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [main]
 
+# Production deploys are done by the server-side pull deployer (esms-infra/deployer, every minute
+# from main), NOT by Actions. The old SSH deploy steps were removed 2026-10-29: the ec2-user
+# CI key is gone, so they failed every run and kept CI red. CI now only tests/builds.
 jobs:
   build:
     name: Build
@@ -31,56 +34,3 @@ jobs:
           name: build
           path: out/
           retention-days: 1
-
-  test-server:
-    name: Test Server Connection
-    runs-on: ubuntu-latest
-    needs: build
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - name: Test SSH connection
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ec2-user
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: |
-            echo "Connected to $(hostname)"
-            echo "Nginx status: $(sudo systemctl is-active nginx)"
-            sudo mkdir -p /var/www/esms-docs
-            sudo chown ec2-user:ec2-user /var/www/esms-docs
-
-  deploy:
-    name: Deploy
-    runs-on: ubuntu-latest
-    needs: [build, test-server]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    steps:
-      - name: Download build artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: build
-          path: out/
-
-      - name: Deploy to server
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ec2-user
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          source: "out/*"
-          target: /var/www/esms-docs
-          strip_components: 1
-          overwrite: true
-
-      - name: Reload nginx
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ec2-user
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: |
-            echo "Files deployed:"
-            ls -la /var/www/esms-docs/docs/
-            sudo nginx -t && sudo systemctl reload nginx
-            echo "Deploy complete"
