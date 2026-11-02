@@ -61,7 +61,8 @@ Every response includes an `X-Request-Id` header (your own value is echoed if yo
 |------|--------|-------------|------------|
 | `bad_request` | 400 | Invalid phone number, no active route for the country, bad `scheduled_at` | Use E.164 format and check [Coverage & Pricing](/docs/help/coverage) |
 | `insufficient_balance` | 402 | Wallet balance too low (`required`, `available` in details) | [Top up](/docs/billing/balance) |
-| `forbidden` | 403 | Sender ID not approved for this country | Use an [approved sender ID](/docs/sender-ids/request) or omit the field |
+| `forbidden` | 403 | Sender ID not approved for this country | Use an [approved sender ID](/docs/sender-ids/request). In the [8 default-sender countries](/docs/sender-ids/overview#default-sender-ids) you can also omit the field |
+| `sender_id_required` | 403 | Default sender IDs are no longer available in this country because of misuse by spammers | [Register your own sender ID](/docs/sender-ids/request), then send with it. Nothing is charged |
 | `recipient_opted_out` | 403 | The recipient replied STOP to your messages | Remove the number |
 | `account_suspended` | 403 | The account is suspended | Contact support |
 | `duplicate_message` | 409 | Identical message to the same number within 5 minutes (duplicate protection on) | Wait, or change the text |

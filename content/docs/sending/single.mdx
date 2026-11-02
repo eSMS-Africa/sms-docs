@@ -23,7 +23,7 @@ POST /api/messages/send
 | --------------- | ------ | ------------ | ----------------------------------------------------------------------- |
 | `to`            | string | Yes          | Recipient phone in E.164 format (`+254...`)                             |
 | `text`          | string | Yes          | Message content. Up to 160 chars = 1 segment                            |
-| `sender_id`     | string | No           | Approved sender ID. Defaults to route's default sender                  |
+| `sender_id`     | string | No           | Approved sender ID. Defaults to the route's default sender only in the [8 default-sender countries](/docs/sender-ids/overview#default-sender-ids); elsewhere a live send returns `403 sender_id_required` |
 | `route`         | string | No           | Route code (e.g. `ESMS_UG`). Auto-detected from phone number if omitted |
 | `schedule_mode` | string | No           | `"now"` (default) or `"scheduled"`                                      |
 | `scheduled_at`  | string | If scheduled | ISO 8601 UTC datetime, 5 minutes to 7 days in the future                |
