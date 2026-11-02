@@ -25,12 +25,12 @@ GET https://sms.esmsafrica.io/api/sender-ids/fees
 Public - no authentication. Cached for up to 5 minutes. Returns the Sender ID fee for
 every one of the 54 African countries, in USD.
 
-Fees are charged from your wallet **only when a request is approved** - one fee per
-country in the request that has a fee. Nothing is charged on rejection.
+Fees are stated in USD, one per country in the request that has a fee. Pay them through
+[Pay for Sender ID](/docs/sender-ids/overview#paying-the-fee). Your SMS credit is not used for Sender ID fees.
 
 ### Response
 
-```jsonc
+```json
 {
   "currency": "USD",
   "countries": [
@@ -46,35 +46,16 @@ country in the request that has a fee. Nothing is charged on rejection.
     {
       "country_code": "KE",
       "country_name": "Kenya",
-      "fee_usd": <total_usd>,
+      "fee_usd": 212.57,
       "fee_type": "bundle",
       "covers": "all_networks",
-      "fee_table": [
-        ["Bundled Safaricom & Airtel", "KES 14,100", "None"],
-        ["Safaricom only", "KES 8,700", "None"],
-        ["Airtel only", "KES 8,700", "None"],
-        ["Telkom", "KES 4,500", "None"],
-        ["Equitel", "KES 9,000", "None"]
-      ],
       "note": "One payment covers Safaricom, Airtel, Telkom and Equitel. These are one-time fees with no monthly maintenance.",
       "bundle": {
-        "currency": "KES",
-        "total_local": 27600,
-        "total_label": "KES 27,600",
-        "total_usd": <total_usd>,
-        "note": "One payment covers Safaricom, Airtel, Telkom and Equitel. These are one-time fees with no monthly maintenance.",
+        "total_usd": 212.57,
         "lines": [
-          {
-            "network": "Safaricom and Airtel",
-            "detail": "One-time, bundled rate",
-            "units": 1,
-            "unit_price_label": "KES 14,100",
-            "amount_local": 14100,
-            "amount_label": "KES 14,100",
-            "calculation": "KES 14,100",
-            "amount_usd": <amount_usd>
-          }
-          // Telkom and Equitel lines follow in the same shape
+          { "network": "Safaricom and Airtel", "detail": "One-time, bundled rate", "units": 1, "amount_usd": 108.59 },
+          { "network": "Telkom", "detail": "One-time", "units": 1, "amount_usd": 34.66 },
+          { "network": "Equitel", "detail": "One-time", "units": 1, "amount_usd": 69.32 }
         ]
       }
     },
@@ -95,14 +76,13 @@ country in the request that has a fee. Nothing is charged on rejection.
 |-------|------|-------------|
 | `country_code` | string | ISO 3166-1 alpha-2 code. |
 | `country_name` | string | Display name. |
-| `fee_usd` | number \| null | The fee in USD. `100` for flat-fee countries (every country except Kenya and Uganda); the total in USD for Kenya and Uganda; `null` when the fee is confirmed at onboarding. |
+| `fee_usd` | number \| null | The fee in USD. `100` for flat-fee countries (every country except Kenya and Uganda); `212.57` for Kenya and `268` for Uganda; `null` when the fee is confirmed at onboarding. |
 | `fee_type` | string | `one_time` - a single flat fee for the country. `bundle` - one total covering all networks, with a per-network breakdown in `bundle` (Kenya, Uganda). `on_request` - fees are confirmed during onboarding. |
 | `covers` | string \| null | `all_networks` when one payment registers the sender ID on every network in the country. |
-| `fee_table` | array \| null | The price list behind a bundle, as rows of `[network, setup, recurring]`, in local currency. `null` when not applicable. Use `bundle` for what you pay. |
-| `bundle` | object | Kenya and Uganda only. `currency`, `total_local`, `total_label`, `total_usd`, `note` and `lines`, one per network: `network`, `detail`, `units`, `unit_price_label`, `amount_local`, `amount_label`, `calculation`, `amount_usd`. |
+| `fee_table` | array \| null | Kept for older clients. Use `fee_usd` and `bundle` for what you pay. |
+| `bundle` | object | Kenya and Uganda only. `total_usd`, `note` and `lines`, one per network: `network`, `detail`, `units`, `amount_usd`. Other fields in `bundle` are kept for older clients; `amount_usd` and `fee_usd` are the source. |
 | `note` | string \| null | Extra detail, for example `Confirmed during onboarding`. |
 
-`<total_usd>` and `<amount_usd>` stand for the USD values in the live response. Read them from this endpoint.
 The response also has a legacy top-level `fees` map (country code to USD fee, including Kenya and Uganda) and a `note`.
 
 ### Fees by country
@@ -110,27 +90,27 @@ The response also has a legacy top-level `fees` map (country code to USD fee, in
 | Countries | Fee |
 |-----------|-----|
 | All African countries except Kenya and Uganda | **USD 100 one-time** per country - covers registration on all networks |
-| Kenya | **KES 27,600** one-time, no monthly maintenance - one payment covers all networks |
-| Uganda | **UGX 1,000,000** - one payment covers all networks |
+| Kenya | **USD 212.57** one-time, no monthly maintenance - one payment covers all 4 networks |
+| Uganda | **USD 268** - one payment covers all networks |
 
 **Kenya**
 
 | Network | Calculation | Amount |
 |---------|-------------|--------|
-| Safaricom and Airtel (bundled rate) | One-time | KES 14,100 |
-| Telkom | One-time | KES 4,500 |
-| Equitel | One-time | KES 9,000 |
-| **Total** | | **KES 27,600** |
+| Safaricom and Airtel (bundled rate) | One-time | USD 108.59 |
+| Telkom | One-time | USD 34.66 |
+| Equitel | One-time | USD 69.32 |
+| **Total** | | **USD 212.57** |
 
 **Uganda**
 
 | Network | Calculation | Amount |
 |---------|-------------|--------|
-| MTN | UGX 250,000 per month x 3 months minimum, paid up front | UGX 750,000 |
-| Airtel | One-time | UGX 250,000 |
-| **Total** | | **UGX 1,000,000** |
+| MTN | 3 months x USD 67 | USD 201 |
+| Airtel | One-time | USD 67 |
+| **Total** | | **USD 268** |
 
-The endpoint is the source of truth - read it for current fees and for the USD total in Kenya and Uganda.
+The endpoint is the source of truth - read it for current fees.
 
 ### Example
 
@@ -280,9 +260,9 @@ for from **Pay for Sender ID**, with the same payment fields.
 | Field | Description |
 |-------|-------------|
 | `status` | `pending`, `approved` or `rejected`. |
-| `fee_usd` | The Sender ID fee charged for this request (`0` when no fee applied). |
-| `fee_charged_at` | When the fee was charged (on approval), or `null`. |
-| `payment_state` | `no_fee`, `unpaid`, `part_paid` (a part payment was made and a balance is due), `paid_in_full` (the payments held cover the fee) or `settled` (the fee has been charged). |
+| `fee_usd` | The Sender ID fee settled for this request (`0` when no fee applied). |
+| `fee_charged_at` | When the fee was settled from the payments held on the request, or `null`. |
+| `payment_state` | `no_fee`, `unpaid`, `part_paid` (a part payment was made and a balance is due), `paid_in_full` (the payments held cover the fee) or `settled` (the fee has been settled). |
 | `balance_due_usd` | What is still due in USD. A `part_paid` request is not fully paid until this is cleared. |
 | `fee_breakdown` | One row per country still owing a fee: `country_code`, `fee_usd` and, for Kenya and Uganda, `bundle` with the per-network lines. |
 
@@ -318,12 +298,14 @@ POST https://sms.esmsafrica.io/api/sender-ids
 }
 ```
 
-`estimated_fee_usd` is the Sender ID fee that will be charged **when the request is
-approved** (one fee per country in `fee_countries`; in Kenya and Uganda, the total in USD
-that covers all networks). Nothing is charged now, and nothing is charged if the request
-is rejected. Payments in advance are a minimum of USD 50: a smaller amount than the fee is a
-[part payment](/docs/sender-ids/overview#part-payments), and anything above the fee goes to
-your wallet balance.
+`estimated_fee_usd` is the Sender ID fee for the request (one fee per country in
+`fee_countries`; in Kenya and Uganda, the total that covers all networks). Nothing is charged
+now. Pay it through [Pay for Sender ID](/docs/sender-ids/overview#paying-the-fee), a minimum of USD 50 per payment. A smaller
+amount than the fee is a part payment. Your SMS credit is not used for Sender ID fees. Approving a
+request with a balance due returns `402` with code `sender_fee_unpaid`.
+
+Payments are held on the request and returned to your balance if it is rejected or deleted, and
+anything above the fee goes to your balance.
 
 <Cards>
   <Card title="Sender IDs guide" href="/docs/sender-ids/overview" description="How sender IDs work, approval and pricing." />

@@ -46,17 +46,18 @@ Response:
 }
 ```
 
-`estimated_fee_usd` is the Sender ID fee charged when the request is approved (per country in
-`fee_countries`: USD 100, or in Kenya and Uganda the total in USD that covers all networks). Nothing
-is charged now or on rejection.
+`estimated_fee_usd` is the Sender ID fee for the request (per country in `fee_countries`: USD 100,
+USD 212.57 in Kenya, USD 268 in Uganda). Nothing is charged now. Pay it through **Pay for Sender ID**.
 
 ## Fees
 
-Sender ID fees are charged from your wallet **only when the request is approved**. Every African
-country except Kenya and Uganda is **USD 100 one-time per country, covering all networks**;
-in Kenya and Uganda one bundle payment covers all networks (KES 27,600 and UGX 1,000,000). You can also
-pay in advance from **Pay for Sender ID**; a smaller amount than the fee is a part payment and the
-request shows a balance due. See [Sender ID pricing](/docs/sender-ids/overview#sender-id-pricing) and
+Every African country except Kenya and Uganda is **USD 100 one-time per country, covering all
+networks**; one payment covers all networks in Kenya (USD 212.57 one-time) and Uganda (USD 268). Pay the
+fee through **Pay for Sender ID**, by mobile money where available, Mukuru or crypto. Your SMS credit is
+not used for Sender ID fees, and registration needs the fee paid in full before approval. A smaller
+amount than the fee is a part payment and the request shows a balance due. Payments are held on the
+request and returned to your balance if it is rejected or deleted, and anything above the fee goes to
+your balance. See [Sender ID pricing](/docs/sender-ids/overview#sender-id-pricing) and
 [`GET /api/sender-ids/fees`](/docs/api-reference/sender-ids#get-sender-id-fees).
 
 ## Status flow
