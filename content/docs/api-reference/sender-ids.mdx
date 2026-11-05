@@ -264,7 +264,7 @@ for from **Pay for Sender ID**, with the same payment fields.
 | `status` | `pending`, `approved` or `rejected`. |
 | `fee_usd` | The Sender ID fee settled for this request (`0` when no fee applied). |
 | `fee_charged_at` | When the fee was settled from the payments held on the request, or `null`. |
-| `payment_state` | `no_fee`, `unpaid`, `part_paid` (a part payment was made and a balance is due), `paid_in_full` (the payments held cover the fee) or `settled` (the fee has been settled). |
+| `payment_state` | `no_fee`, `unpaid`, `part_paid` (part of the fee is held and a balance is due; only that exact balance can be paid), `paid_in_full` (the payments held cover the fee) or `settled` (the fee has been settled). |
 | `balance_due_usd` | What is still due in USD. A `part_paid` request is not fully paid until this is cleared. |
 | `fee_breakdown` | One row per country still owing a fee: `country_code`, `fee_usd` and, for Kenya and Uganda, `bundle` with the per-network lines. |
 
@@ -302,12 +302,13 @@ POST https://sms.esmsafrica.io/api/sender-ids
 
 `estimated_fee_usd` is the Sender ID fee for the request (one fee per country in
 `fee_countries`; in Kenya and Uganda, the total that covers all networks). Nothing is charged
-now. Pay it through [Pay for Sender ID](/docs/sender-ids/overview#paying-the-fee), a minimum of USD 50 per payment. A smaller
-amount than the fee is a part payment. Your SMS credit is not used for Sender ID fees. Approving a
+now. Pay it through [Pay for Sender ID](/docs/sender-ids/overview#paying-the-fee), in one payment of the exact
+amount due. Your SMS credit is not used for Sender ID fees. Approving a
 request with a balance due returns `402` with code `sender_fee_unpaid`.
 
-Payments are held on the request and returned to your balance if it is rejected or deleted, and
-anything above the fee goes to your balance.
+The payment is held on the request and goes to your balance if it is rejected or deleted. A request
+that includes a country we cannot send to today can be submitted but cannot be paid, and nothing is
+charged: `unavailable_countries` in the response lists those countries.
 
 <Cards>
   <Card title="Sender IDs guide" href="/docs/sender-ids/overview" description="How sender IDs work, approval and pricing." />

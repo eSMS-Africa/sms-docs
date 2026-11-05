@@ -71,11 +71,13 @@ After the first 3 months, MTN is UGX 250,000 per month, charged in USD at the ex
 Pay the fee through **Pay for Sender ID**, by mobile money where available, Mukuru or crypto. Your
 SMS credit is not used for Sender ID fees. Registration needs the fee paid in full before approval.
 
-- Payments are a minimum of USD 50.
-- A payment smaller than the fee is a **part payment**: the request shows a **balance due** and is
-  not fully paid until the balance is cleared. Pay the balance from **Pay for Sender ID**.
-- Payments are held on the request and returned to your balance if it is rejected or deleted.
-- Anything you pay above the fee goes to your balance.
+- A fee is **one payment**, in full. The amount is fixed to what is due and anything else is refused,
+  on every payment method.
+- The total shows the processing fee. A mobile money or card checkout may add its own charge, which it
+  shows before you confirm and which you pay on top.
+- If a country is **not available yet**, we cannot send there today: you can still submit the request,
+  you are not charged, and it cannot be paid until the country is available.
+- The payment is held on the request and goes to your balance if it is rejected or deleted.
 
 Current fees for all 54 countries are on [esmsafrica.io/pricing](https://esmsafrica.io/pricing)
 and from the public [`GET /api/sender-ids/fees`](/docs/api-reference/sender-ids#get-sender-id-fees)
