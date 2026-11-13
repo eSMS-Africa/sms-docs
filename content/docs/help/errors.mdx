@@ -69,6 +69,8 @@ Every response includes an `X-Request-Id` header (your own value is echoed if yo
 | `message_too_long` | 413 | Message exceeds the segment cap (`max_segments` in details) | Shorten the text |
 | `international_price_unset` | 400 | `international: true` but no international price for the country | Send without `international` or contact support |
 | `rate_limited` | 429 | Per-key limit exceeded (single send `20/second`, bulk `10/minute`) | Back off and retry |
+| `invalid_sender_name` | 400 | Sender ID request: the name breaks the format | Use letters, numbers and a hyphen only, for example `eSMS`, `eSMSAfrica` or `eSMS-UG`. No spaces or underscores. 3 to 11 characters |
+| `brand_proof_required` | 409 | Sender ID request: the name looks like a protected brand | Upload the brand owner's authorisation letter on the Sender IDs page. Nothing is charged until it is checked |
 
 ### Authentication errors
 
