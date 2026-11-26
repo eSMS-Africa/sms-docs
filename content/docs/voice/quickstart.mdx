@@ -1,0 +1,201 @@
+---
+title: Voice quickstart
+description: Place your first eSMS Voice call - in the sandbox with an esms_test_ key, then live once voice is enabled on your account.
+---
+
+
+<Callout type="warn" title="Early access - contact sales">
+Live calls need voice enabled on your account - [contact sales](https://esmsafrica.io/contact).
+Everything on this page works today in the sandbox with an `esms_test_` key.
+</Callout>
+
+## 1. Get an API key
+
+Create an API key in the eSMS dashboard (**Developers > API keys**) with the **`voice`** scope.
+Use an `esms_test_` key while you build: calls are simulated and free.
+
+## 2. Place a call
+
+Every create request needs an `Idempotency-Key` header - any unique string up to 80
+characters, for example your own order or job id. Sending the same key and body again returns the
+first response instead of placing a second call.
+
+<Tabs items={['cURL', 'Node.js', 'Python', 'PHP', 'Go']}>
+<Tab value="cURL">
+
+```bash
+curl -X POST https://sms.esmsafrica.io/v1/voice/calls \
+  -H "Authorization: Bearer esms_test_your_api_key" \
+  -H "Idempotency-Key: welcome-call-0001" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": "+256772120003",
+    "flow": {
+      "steps": [
+        { "type": "say", "text": "Hello from Acme. Your order has shipped." },
+        { "type": "gather", "num_digits": 1,
+          "prompt": { "say": "Press 1 to hear it again, or 2 to end the call." },
+          "branches": {
+            "1": [{ "type": "say", "text": "Your order has shipped. Goodbye." }]
+          } },
+        { "type": "hangup" }
+      ]
+    },
+    "metadata": { "order_id": "A-1042" }
+  }'
+```
+
+</Tab>
+<Tab value="Node.js">
+
+```js
+const res = await fetch('https://sms.esmsafrica.io/v1/voice/calls', {
+  method: 'POST',
+  headers: {
+    Authorization: `Bearer ${process.env.ESMS_API_KEY}`,
+    'Idempotency-Key': 'welcome-call-0001',
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    to: '+256772120003',
+    flow: {
+      steps: [
+        { type: 'say', text: 'Hello from Acme. Your order has shipped.' },
+        { type: 'gather', num_digits: 1,
+          prompt: { say: 'Press 1 to hear it again, or 2 to end the call.' },
+          branches: { 1: [{ type: 'say', text: 'Your order has shipped. Goodbye.' }] } },
+        { type: 'hangup' },
+      ],
+    },
+    metadata: { order_id: 'A-1042' },
+  }),
+});
+const call = await res.json(); // 202 { id: 'call_...', status: 'queued', ... }
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import os, requests
+
+r = requests.post(
+    "https://sms.esmsafrica.io/v1/voice/calls",
+    headers={
+        "Authorization": f"Bearer {os.environ['ESMS_API_KEY']}",
+        "Idempotency-Key": "welcome-call-0001",
+    },
+    json={
+        "to": "+256772120003",
+        "flow": {"steps": [
+            {"type": "say", "text": "Hello from Acme. Your order has shipped."},
+            {"type": "gather", "num_digits": 1,
+             "prompt": {"say": "Press 1 to hear it again, or 2 to end the call."},
+             "branches": {"1": [{"type": "say", "text": "Your order has shipped. Goodbye."}]}},
+            {"type": "hangup"},
+        ]},
+        "metadata": {"order_id": "A-1042"},
+    },
+    timeout=15,
+)
+call = r.json()  # 202 {"id": "call_...", "status": "queued", ...}
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+$body = [
+  'to' => '+256772120003',
+  'flow' => ['steps' => [
+    ['type' => 'say', 'text' => 'Hello from Acme. Your order has shipped.'],
+    ['type' => 'gather', 'num_digits' => 1,
+     'prompt' => ['say' => 'Press 1 to hear it again, or 2 to end the call.'],
+     'branches' => ['1' => [['type' => 'say', 'text' => 'Your order has shipped. Goodbye.']]]],
+    ['type' => 'hangup'],
+  ]],
+  'metadata' => ['order_id' => 'A-1042'],
+];
+$ch = curl_init('https://sms.esmsafrica.io/v1/voice/calls');
+curl_setopt_array($ch, [
+  CURLOPT_POST => true,
+  CURLOPT_RETURNTRANSFER => true,
+  CURLOPT_HTTPHEADER => [
+    'Authorization: Bearer ' . getenv('ESMS_API_KEY'),
+    'Idempotency-Key: welcome-call-0001',
+    'Content-Type: application/json',
+  ],
+  CURLOPT_POSTFIELDS => json_encode($body),
+]);
+$call = json_decode(curl_exec($ch), true);
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+body := `{"to":"+256772120003","flow":{"steps":[
+  {"type":"say","text":"Hello from Acme. Your order has shipped."},
+  {"type":"gather","num_digits":1,"prompt":{"say":"Press 1 to hear it again, or 2 to end the call."},
+   "branches":{"1":[{"type":"say","text":"Your order has shipped. Goodbye."}]}},
+  {"type":"hangup"}]},"metadata":{"order_id":"A-1042"}}`
+req, _ := http.NewRequest("POST", "https://sms.esmsafrica.io/v1/voice/calls", strings.NewReader(body))
+req.Header.Set("Authorization", "Bearer "+os.Getenv("ESMS_API_KEY"))
+req.Header.Set("Idempotency-Key", "welcome-call-0001")
+req.Header.Set("Content-Type", "application/json")
+resp, err := http.DefaultClient.Do(req)
+```
+
+</Tab>
+</Tabs>
+
+The number ends in `0003`, so the sandbox answers, presses `1` and completes. The response comes
+back at once with `202 Accepted`:
+
+```json
+{
+  "id": "call_6f1c2a9e4b7d8c0f1a2b3c4d",
+  "status": "queued",
+  "to": "+256772120003",
+  "from": "+256312000000",
+  "country": "UG",
+  "livemode": false,
+  "created_at": "2026-11-26T12:00:00Z",
+  "estimate": { "per_minute_usd": 0.0, "hold_usd": 0.0, "estimated_seconds": 19 }
+}
+```
+
+`from` is optional: leave it out and the call uses a shared caller number for the destination
+country. `GET /v1/voice/numbers` lists the caller numbers you can use.
+
+## 3. Follow the call
+
+Add a webhook endpoint once, and every call reports to it:
+
+```bash
+curl -X POST https://sms.esmsafrica.io/v1/voice/webhook-endpoints \
+  -H "Authorization: Bearer esms_test_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "url": "https://example.com/hooks/voice" }'
+# -> 201 { "id": "vwh_...", "secret": "whsec_...", "events": [...], ... }
+```
+
+Keep the `secret` - it is shown in full only now and after a rotation. Your endpoint receives
+`call.queued`, `call.initiated`, `call.ringing`, `call.answered`, `call.gather` (digits `1`) and
+`call.completed`, each signed. See [Webhooks](/docs/voice/webhooks) to verify them.
+
+Or poll:
+
+```bash
+curl https://sms.esmsafrica.io/v1/voice/calls/call_6f1c2a9e4b7d8c0f1a2b3c4d \
+  -H "Authorization: Bearer esms_test_your_api_key"
+```
+
+The response is the call with its `flow` and full `events` history.
+
+## 4. Go live
+
+1. [Contact sales](https://esmsafrica.io/contact) to enable voice and the countries you need.
+2. Check `GET /v1/voice/settings`: `enabled: true`, your `allowed_countries` and limits.
+3. Top up your balance - each live call holds its maximum cost before dialling.
+4. Swap `esms_test_` for an `esms_live_` key. Nothing else changes.

@@ -1,0 +1,263 @@
+---
+title: Voice webhooks
+description: Signed eSMS Voice events - call and campaign event types, headers, HMAC-SHA256 signature verification in Node, Python, PHP and Go, retries, deduplication and out-of-order handling.
+---
+
+
+<Callout type="warn" title="Early access - contact sales">
+eSMS Voice is in early access. [Contact sales](https://esmsafrica.io/contact) to enable live calls.
+Webhooks fire for sandbox (`esms_test_`) calls too, so you can build this today.
+</Callout>
+
+eSMS Voice `POST`s a signed JSON event to your endpoints every time a call or campaign changes.
+There are two ways to receive them:
+
+- **Webhook endpoints** - account-wide URLs, each subscribed to some or all event types
+  (up to 10 per account). Manage them with the API below.
+- **`status_callback`** - an optional `https://` URL on a single call. It receives the same signed
+  events for that call only, in addition to your endpoints.
+
+## Manage endpoints
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/v1/voice/webhook-endpoints` | Add an endpoint: `{"url": "https://...", "events": ["call.completed", ...]}`. Omit `events` for all. Returns the `secret` once. |
+| `GET` | `/v1/voice/webhook-endpoints` | List endpoints (secret shown as `secret_hint`) and the available `events`. |
+| `PATCH` | `/v1/voice/webhook-endpoints/{id}` | Change `url`, `events` or `active`. |
+| `DELETE` | `/v1/voice/webhook-endpoints/{id}` | Remove an endpoint. |
+| `POST` | `/v1/voice/webhook-endpoints/{id}/rotate-secret` | New secret now; the previous one stays valid for 24 hours (see below). |
+| `POST` | `/v1/voice/webhook-endpoints/{id}/test` | Send a signed sample `call.completed` event (`"test": true`) right away. |
+| `GET` | `/v1/voice/webhook-deliveries` | Delivery log: `?status=pending\|delivered\|failed`, `event_type`, `call_id`, `page`, `limit`. |
+| `POST` | `/v1/voice/webhook-deliveries/{id}/replay` | Send a delivery again (same event id). |
+
+URLs must be public `https://` addresses of at most 500 characters; private, loopback and
+metadata addresses are refused with `400 invalid_url`.
+
+```bash
+curl -X POST https://sms.esmsafrica.io/v1/voice/webhook-endpoints \
+  -H "Authorization: Bearer esms_live_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "url": "https://example.com/hooks/voice", "events": ["call.answered", "call.gather", "call.completed", "call.failed"] }'
+```
+
+```json
+{
+  "id": "vwh_3b9f0c1d2e3f4a5b6c7d8e9f",
+  "url": "https://example.com/hooks/voice",
+  "events": ["call.answered", "call.gather", "call.completed", "call.failed"],
+  "active": true,
+  "created_at": "2026-11-26T12:00:00Z",
+  "secret_rotated_at": null,
+  "secret_hint": "whsec_1a2b...",
+  "secret": "whsec_1a2b3c4d5e6f..."
+}
+```
+
+## Events
+
+| Event | When |
+|---|---|
+| `call.queued` | The call was accepted and is waiting to be dialled. |
+| `call.initiated` | The voice network accepted the call. |
+| `call.ringing` | The phone is ringing. |
+| `call.answered` | The call was answered and the flow started. |
+| `call.gather` | Key presses were collected (`gather_digits`; masked as `****` when the gather is `sensitive`). |
+| `call.completed` | The call ended normally after being answered. |
+| `call.failed` | The call ended without completing: `status` is `busy`, `no_answer`, `failed` or `canceled`, with `status_reason` and `error_code`. |
+| `campaign.recipient.updated` | A campaign recipient changed status. |
+| `campaign.completed` | Every recipient of a campaign reached a final status. |
+
+## Payload
+
+```http
+POST /hooks/voice HTTP/1.1
+Content-Type: application/json
+X-Webhook-Id: evt_9b2e4f6a8c0d1e2f3a4b5c6d
+X-Webhook-Timestamp: 1764158409
+X-Webhook-Signature: sha256=3c7a9e...
+```
+
+```json
+{
+  "id": "evt_9b2e4f6a8c0d1e2f3a4b5c6d",
+  "type": "call.completed",
+  "created_at": "2026-11-26T12:00:41Z",
+  "livemode": true,
+  "sequence": 7,
+  "data": {
+    "call": {
+      "id": "call_6f1c2a9e4b7d8c0f1a2b3c4d",
+      "object": "call",
+      "status": "completed",
+      "status_reason": null,
+      "error_code": null,
+      "retryable": false,
+      "direction": "outbound",
+      "to": "+256772123456",
+      "from": "+256312000000",
+      "country": "UG",
+      "livemode": true,
+      "environment": "live",
+      "max_duration_seconds": 120,
+      "estimated_seconds": 31,
+      "duration_seconds": 34,
+      "billed_seconds": 60,
+      "gather_digits": "1",
+      "price": { "per_minute_usd": 0.0, "hold_usd": 0.0, "charge_usd": 0.0, "currency": "USD" },
+      "metadata": { "order_id": "A-1042" },
+      "status_callback": null,
+      "campaign_id": null,
+      "hangup_requested": false,
+      "created_at": "2026-11-26T12:00:00Z",
+      "queued_at": "2026-11-26T12:00:00Z",
+      "dispatched_at": "2026-11-26T12:00:01Z",
+      "ringing_at": "2026-11-26T12:00:03Z",
+      "answered_at": "2026-11-26T12:00:07Z",
+      "ended_at": "2026-11-26T12:00:41Z",
+      "sequence": 7
+    }
+  }
+}
+```
+
+`data.call` is the same object `GET /v1/voice/calls/{id}` returns (without `flow` and `events`).
+`campaign.recipient.updated` carries `data.campaign` (`id`, `name`) and `data.recipient`
+(`phone`, `status`, `attempts`, `call_id`, `disposition`, `cost_usd`, `error`, ...);
+`campaign.completed` carries the full `data.campaign` with its `counters`. Price fields are illustrative
+here - your account's prices are agreed during early access.
+
+## Verify the signature
+
+`X-Webhook-Signature` is `sha256=` followed by the hex HMAC-SHA256 of
+`"<X-Webhook-Timestamp>.<raw request body>"`, keyed with your endpoint secret. Always:
+
+1. Use the **raw** body bytes, before any JSON parsing.
+2. Compare in **constant time**.
+3. Reject old timestamps (we suggest more than 5 minutes from your clock) to stop replays.
+
+For a per-call `status_callback`, the secret is your first active endpoint's secret, or a
+per-account voice signing secret when you have no endpoint. Adding an endpoint first is the
+simplest way to know the secret.
+
+<Tabs items={['Node.js', 'Python', 'PHP', 'Go']}>
+<Tab value="Node.js">
+
+```js
+import crypto from 'node:crypto';
+import express from 'express';
+
+const app = express();
+const SECRET = process.env.ESMS_VOICE_WEBHOOK_SECRET;
+
+app.post('/hooks/voice', express.raw({ type: 'application/json' }), (req, res) => {
+  const ts = req.get('X-Webhook-Timestamp') || '';
+  const sig = req.get('X-Webhook-Signature') || '';
+  const expected = 'sha256=' + crypto.createHmac('sha256', SECRET)
+    .update(`${ts}.${req.body.toString('utf8')}`).digest('hex');
+  const ok = sig.length === expected.length &&
+    crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected));
+  if (!ok || Math.abs(Date.now() / 1000 - Number(ts)) > 300) return res.sendStatus(401);
+
+  const event = JSON.parse(req.body.toString('utf8'));
+  // Deduplicate on event.id, then handle event.type
+  res.sendStatus(200);
+});
+```
+
+</Tab>
+<Tab value="Python">
+
+```python
+import hashlib, hmac, json, os, time
+from flask import Flask, request, abort
+
+app = Flask(__name__)
+SECRET = os.environ["ESMS_VOICE_WEBHOOK_SECRET"].encode()
+
+@app.post("/hooks/voice")
+def voice_hook():
+    ts = request.headers.get("X-Webhook-Timestamp", "")
+    sig = request.headers.get("X-Webhook-Signature", "")
+    raw = request.get_data()  # raw bytes
+    expected = "sha256=" + hmac.new(SECRET, ts.encode() + b"." + raw, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(sig, expected) or abs(time.time() - int(ts or 0)) > 300:
+        abort(401)
+    event = json.loads(raw)
+    # Deduplicate on event["id"], then handle event["type"]
+    return "", 200
+```
+
+</Tab>
+<Tab value="PHP">
+
+```php
+$secret = getenv('ESMS_VOICE_WEBHOOK_SECRET');
+$raw = file_get_contents('php://input');
+$ts = $_SERVER['HTTP_X_WEBHOOK_TIMESTAMP'] ?? '';
+$sig = $_SERVER['HTTP_X_WEBHOOK_SIGNATURE'] ?? '';
+$expected = 'sha256=' . hash_hmac('sha256', $ts . '.' . $raw, $secret);
+
+if (!hash_equals($expected, $sig) || abs(time() - (int)$ts) > 300) {
+  http_response_code(401);
+  exit;
+}
+$event = json_decode($raw, true);
+// Deduplicate on $event['id'], then handle $event['type']
+http_response_code(200);
+```
+
+</Tab>
+<Tab value="Go">
+
+```go
+func voiceHook(w http.ResponseWriter, r *http.Request) {
+	raw, _ := io.ReadAll(r.Body)
+	ts := r.Header.Get("X-Webhook-Timestamp")
+	sig := r.Header.Get("X-Webhook-Signature")
+
+	mac := hmac.New(sha256.New, []byte(os.Getenv("ESMS_VOICE_WEBHOOK_SECRET")))
+	mac.Write([]byte(ts + "."))
+	mac.Write(raw)
+	expected := "sha256=" + hex.EncodeToString(mac.Sum(nil))
+
+	sec, _ := strconv.ParseInt(ts, 10, 64)
+	if !hmac.Equal([]byte(sig), []byte(expected)) || math.Abs(float64(time.Now().Unix()-sec)) > 300 {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	var event map[string]any
+	_ = json.Unmarshal(raw, &event)
+	// Deduplicate on event["id"], then handle event["type"]
+	w.WriteHeader(http.StatusOK)
+}
+```
+
+</Tab>
+</Tabs>
+
+### Rotating the secret
+
+`POST /v1/voice/webhook-endpoints/{id}/rotate-secret` returns a new `secret` immediately. For the
+next 24 hours each delivery also carries `X-Webhook-Signature-Previous`, signed with the old
+secret, so you can deploy the new secret without dropping events. Accept either header during the
+switch.
+
+## Retries
+
+Answer with any `2xx` within a few seconds to acknowledge. Anything else (or a timeout) is retried
+after **1 minute, 5 minutes, 30 minutes, 2 hours, 8 hours and 24 hours**, then the delivery is
+marked `failed` - never more than 48 hours after the event. Every retry keeps the same
+`X-Webhook-Id`. Failed deliveries stay in `GET /v1/voice/webhook-deliveries` and can be replayed.
+
+Do slow work after you respond: acknowledge first, then process from your own queue.
+
+## Duplicates and order
+
+- **Deduplicate by event id.** The same event can arrive more than once (a retry after a timeout,
+  a replay). Store `id` (also in `X-Webhook-Id`) and skip ids you have already processed.
+- **Events can arrive out of order.** Deliveries are independent, so `call.completed` can reach you
+  before `call.answered`. Use `sequence` (it only grows for a call) and keep the highest one you
+  have applied; ignore an event whose `sequence` is lower. Final statuses (`completed`, `busy`,
+  `no_answer`, `failed`, `canceled`) never change once reached.
+- **Missed something?** `GET /v1/voice/calls/{id}` always returns the current state and the full
+  event history, so reconcile from the API whenever in doubt.

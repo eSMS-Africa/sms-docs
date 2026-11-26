@@ -1,0 +1,94 @@
+---
+title: Voice billing
+description: How eSMS Voice calls are charged - per-minute country pricing billed per started minute, the pre-call hold released after the call, campaign estimates and the daily spend cap.
+---
+
+<Callout type="warn" title="Early access - contact sales">
+Per-minute pricing per country, shown before you launch - early access pricing on request.
+[Contact sales](https://esmsafrica.io/contact) to agree prices and enable live calls.
+</Callout>
+
+Voice calls are paid from the **same USD balance** as your SMS. Sandbox calls (`esms_test_` keys)
+are never charged.
+
+## Per-minute pricing per country
+
+Each country has a price per minute. `GET /v1/voice/pricing` (public, no key needed) lists every
+country with an approved price:
+
+```json
+{
+  "data": [
+    {
+      "country_code": "UG",
+      "country": "Uganda",
+      "currency": "UGX",
+      "per_minute_local": 0,
+      "per_minute_usd": 0,
+      "billing_increment_s": 60,
+      "min_billable_s": 60,
+      "availability": "early_access"
+    }
+  ],
+  "currency_note": "Calls are charged in USD from your balance."
+}
+```
+
+Values above are placeholders. `availability` is `live` when the country is open for live calls
+and `early_access` otherwise. The price that applies to a call is returned when you create it
+(`estimate.per_minute_usd`) and stored on the call (`price.per_minute_usd`).
+
+## Billed per started minute
+
+- A call is billed on its answered duration, **rounded up to the next full minute** (60-second
+  increments, 60 seconds minimum once answered). A 34-second call bills 1 minute; a 61-second
+  call bills 2.
+- **Unanswered calls are not charged** - busy, no answer, failed before answer and canceled calls
+  cost nothing.
+- The call record shows `duration_seconds`, `billed_seconds` and `price.charge_usd`.
+
+## The pre-call hold
+
+When a live call is created, eSMS **holds** the cost of the longest call it could become:
+
+```
+hold = ceil(max_duration_seconds / 60) x per-minute price
+```
+
+So a call with the default `max_duration_seconds` of 120 holds 2 minutes. If your balance cannot
+cover the hold, the call is refused with `402 insufficient_balance` and nothing is dialled.
+
+When the call ends, the hold is settled exactly once:
+
+- the actual charge is taken and the **unused part of the hold is released** to your balance,
+- a call that never connected releases the **whole** hold,
+- a call whose final status cannot be confirmed with the network releases its hold after 10
+  minutes and is marked `failed` with `provider_unknown`.
+
+The hold and the release appear in your transactions. Lower `max_duration_seconds` to hold less
+per call - the flow still has to fit (see [Call flows](/docs/voice/flows)).
+
+<Callout>
+In the rare case the network reports a longer call than the hold covered, the difference is
+charged after the call and can take your balance slightly below zero. This is the only voice case
+that can; the next top-up covers it first.
+</Callout>
+
+## Campaigns
+
+`POST /v1/voice/campaigns/{id}/validate` returns `estimate_usd` (valid recipients x estimated
+call length x per-minute price) and `per_minute_usd` before you launch. During a campaign each
+call holds and settles like a single call. If your balance runs out the campaign pauses with
+`pause_reason: "insufficient_balance"`; top up and resume it.
+
+## Daily spend cap
+
+Every account has a **daily voice spend cap** in USD (holds plus charges since 00:00 UTC). A call
+that would pass it is refused with `429 daily_spend_cap_reached`; the cap resets at 00:00 UTC.
+`GET /v1/voice/settings` shows `limits.daily_spend_cap_usd` and `today_spend_usd`. Ask your
+account manager to change the cap.
+
+## Usage
+
+`GET /v1/voice/usage?days=30` returns totals, `by_day` and `by_country` (calls, answered,
+completed, billed minutes, cost in USD).

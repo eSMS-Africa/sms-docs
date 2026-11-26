@@ -1,0 +1,253 @@
+---
+title: Campaigns
+description: eSMS Voice Campaigns API - create a draft, add recipients by JSON or CSV, validate and estimate cost, launch or schedule, pause, resume, cancel, and export per-recipient results.
+---
+
+<Callout type="warn" title="Early access - contact sales">
+eSMS Voice is in early access. Live campaigns need voice and campaigns enabled on your account -
+[contact sales](https://esmsafrica.io/contact). With an `esms_test_` key the whole campaign
+lifecycle runs in the sandbox (simulated calls, no charge).
+</Callout>
+
+A **voice campaign** calls a list of recipients with the same [flow](/docs/voice/flows),
+personalised with each recipient's `vars`. Every attempt is a normal [call](/docs/api-reference/voice/calls)
+with its own id, hold, events and webhooks.
+
+```
+draft --validate--> validated --launch--> running ----------> completed
+                                  \         |   ^
+                                   \      pause resume
+                                    \       v   |
+                          (schedule_at)  paused
+                     scheduled --> running
+   any state except completed --cancel--> canceled
+```
+
+**Base URL:** `https://sms.esmsafrica.io/v1`. Writes need the `voice` scope; reads accept `voice`
+or `query`.
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/voice/campaigns` | Create a draft campaign |
+| `GET` | `/voice/campaigns` | List campaigns (`?status`, `environment`, `page`, `limit`) |
+| `GET` | `/voice/campaigns/{id}` | Get a campaign |
+| `PATCH` | `/voice/campaigns/{id}` | Edit a draft (returns it to `draft`) |
+| `DELETE` | `/voice/campaigns/{id}` | Delete a draft |
+| `POST` | `/voice/campaigns/{id}/recipients` | Add recipients (JSON list or CSV file) |
+| `POST` | `/voice/campaigns/{id}/validate` | Check recipients and estimate the cost |
+| `POST` | `/voice/campaigns/{id}/launch` | Launch now or at `schedule_at` |
+| `POST` | `/voice/campaigns/{id}/actions` | `pause`, `resume` or `cancel` |
+| `GET` | `/voice/campaigns/{id}/recipients` | Per-recipient results (`?status`, `page`, `limit` up to 500) |
+| `GET` | `/voice/campaigns/{id}/recipients/export` | Results as CSV |
+
+## Create a campaign
+
+```
+POST /v1/voice/campaigns
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `name` | string | yes | At most 120 characters. |
+| `flow` | object | yes | The call flow. `{field}` / `{field\|fallback}` placeholders use recipient `vars`. |
+| `from` | string | no | One of your caller numbers; omit for the shared number of each destination country. |
+| `max_duration_seconds` | integer | no | Per call, default 120. |
+| `schedule_at` | string | no | ISO 8601 start time (can also be given at launch). |
+| `timezone` | string | no | IANA name for display, e.g. `Africa/Kampala`. |
+| `quiet_hours` | object | no | `{"start": "08:00", "end": "20:00"}` (default). Calls are only placed inside these hours **in each recipient's local time**; outside them recipients wait for the next window. |
+| `retry` | object | no | `{"max_attempts": 1-3, "on": ["busy", "no_answer", "failed_retryable"], "delay_minutes": 1-1440}`. Default 1 attempt (no retry), delay 10 minutes. |
+| `cps` | integer | no | Calls started per second, 1-50, never above your account limit. Default 1. |
+| `max_concurrent` | integer | no | Calls in progress at once, never above your account limit. |
+| `recipients` | list | no | `[{"to": "+256...", "vars": {...}}]` - or add them later. |
+
+```bash
+curl -X POST https://sms.esmsafrica.io/v1/voice/campaigns \
+  -H "Authorization: Bearer esms_live_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "December payment reminders",
+    "flow": { "steps": [
+      { "type": "say", "text": "Hello {name|there}, this is Acme Finance. Your payment of {amount} is due on {due_date}." },
+      { "type": "gather", "num_digits": 1,
+        "prompt": { "say": "Press 1 if you have paid, or 2 to be called by an agent." },
+        "branches": { "1": [{ "type": "say", "text": "Thank you." }],
+                      "2": [{ "type": "say", "text": "An agent will call you today." }] } },
+      { "type": "hangup" }
+    ] },
+    "retry": { "max_attempts": 2, "on": ["busy", "no_answer"], "delay_minutes": 30 },
+    "recipients": [
+      { "to": "+256772123456", "vars": { "name": "Amina", "amount": "UGX 50,000", "due_date": "Friday" } }
+    ]
+  }'
+```
+
+Returns `201` with the campaign object:
+
+```json
+{
+  "id": "vcmp_0a1b2c3d4e5f6a7b8c9d0e1f",
+  "object": "voice_campaign",
+  "name": "December payment reminders",
+  "status": "draft",
+  "from": null,
+  "flow": { "steps": [ "..." ] },
+  "schedule_at": null,
+  "timezone": null,
+  "quiet_hours": { "start": "08:00", "end": "20:00" },
+  "retry": { "max_attempts": 2, "on": ["busy", "no_answer"], "delay_minutes": 30 },
+  "cps": 1,
+  "max_concurrent": 5,
+  "max_duration_seconds": 120,
+  "validation": null,
+  "estimate_usd": 0.0,
+  "counters": { "pending": 1, "queued": 0, "calling": 0, "answered": 0, "completed": 0, "failed": 0, "busy": 0,
+                "no_answer": 0, "skipped": 0, "canceled": 0, "invalid": 0, "suppressed": 0, "total": 1 },
+  "livemode": true,
+  "environment": "live",
+  "launched_at": null,
+  "completed_at": null,
+  "pause_reason": null,
+  "created_at": "2026-11-26T12:00:00Z",
+  "updated_at": "2026-11-26T12:00:00Z"
+}
+```
+
+## Add recipients
+
+```
+POST /v1/voice/campaigns/{id}/recipients
+```
+
+Only while the campaign is a draft. Up to 100,000 recipients per campaign.
+
+**JSON** - a list, or `{"recipients": [...]}`:
+
+```json
+[
+  { "to": "+256772123456", "vars": { "name": "Amina", "amount": "UGX 50,000" } },
+  { "to": "+256701987654", "vars": { "name": "Joseph" } }
+]
+```
+
+**CSV** - `multipart/form-data` with a `file` field (at most 20 MB). A header row is required with
+a `phone`, `to` or `msisdn` column; every other column becomes a `var`:
+
+```bash
+curl -X POST https://sms.esmsafrica.io/v1/voice/campaigns/vcmp_0a1b2c3d4e5f6a7b8c9d0e1f/recipients \
+  -H "Authorization: Bearer esms_live_your_api_key" \
+  -F "file=@reminders.csv"
+```
+
+```
+phone,name,amount,due_date
++256772123456,Amina,"UGX 50,000",Friday
++256701987654,Joseph,"UGX 20,000",Monday
+```
+
+Returns `{"added": 2, "campaign": {...}}`.
+
+## Validate
+
+```
+POST /v1/voice/campaigns/{id}/validate
+```
+
+Checks every recipient (number format, duplicates, your allow-list, opt-outs) and estimates the
+cost. Required before launch; editing the campaign returns it to `draft`.
+
+```json
+{
+  "total": 1200,
+  "valid": 1150,
+  "invalid": 20,
+  "duplicates": 18,
+  "suppressed": 7,
+  "not_allowed": 5,
+  "estimate_usd": 0.0,
+  "per_minute_usd": 0.0,
+  "capacity_estimate_minutes": 115,
+  "estimated_call_seconds": 32,
+  "validated_at": "2026-11-26T12:05:00Z"
+}
+```
+
+- `suppressed` - numbers that opted out (your SMS opt-out list and voice opt-outs). They are
+  never called.
+- `not_allowed` - countries not on your allow-list.
+- `estimate_usd` - valid recipients x estimated call length (billed per started minute) x
+  per-minute price. `0` in the sandbox. Values above are placeholders.
+- `capacity_estimate_minutes` - roughly how long the campaign takes at your `max_concurrent`.
+
+## Launch
+
+```
+POST /v1/voice/campaigns/{id}/launch
+```
+
+Body (optional): `{"schedule_at": "2026-12-01T07:00:00Z"}`. Without it (or with a past time) the
+campaign starts now (`running`); with a future time it is `scheduled`. Send an
+`Idempotency-Key` header; launching an already launched campaign returns it unchanged.
+
+Needs a `validated` campaign with at least one valid recipient, and for live campaigns voice
+and campaigns enabled on your account (`503 voice_disabled`, `403 voice_not_enabled`,
+`403 campaigns_not_enabled`).
+
+Recipients are expanded into calls in batches, inside quiet hours, within your `cps` and
+`max_concurrent`. Interactive API calls always go first. Suppression is checked again before
+every attempt.
+
+## Pause, resume, cancel
+
+```
+POST /v1/voice/campaigns/{id}/actions
+{ "action": "pause" }
+```
+
+| `action` | Allowed from | Effect |
+|---|---|---|
+| `pause` | `running`, `scheduled` | Stops new calls. Queued calls not yet dialled go back to `pending` (holds released). Calls already ringing or answered finish and are billed. |
+| `resume` | `paused` | Continues where it stopped. |
+| `cancel` | any state except `completed` / `canceled` | Pending and queued recipients become `canceled`; in-flight calls finish and are billed. |
+
+A campaign also pauses by itself when your balance runs out (`pause_reason:
+"insufficient_balance"`), when the daily spend cap is reached, or when voice is paused for your
+account or a country. Fix the cause and `resume`.
+
+## Recipients and results
+
+```
+GET /v1/voice/campaigns/{id}/recipients?status=no_answer&page=1&limit=100
+```
+
+```json
+{
+  "data": [
+    {
+      "id": 1,
+      "phone": "+256772123456",
+      "country": "UG",
+      "vars": { "name": "Amina" },
+      "status": "completed",
+      "attempts": 1,
+      "next_attempt_at": null,
+      "call_id": "call_6f1c2a9e4b7d8c0f1a2b3c4d",
+      "disposition": "completed",
+      "cost_usd": 0.0,
+      "error": null,
+      "updated_at": "2026-11-26T12:10:00Z"
+    }
+  ],
+  "total": 1150, "page": 1, "limit": 100
+}
+```
+
+Recipient statuses: `pending`, `queued`, `calling`, `answered`, `completed`, `failed`, `busy`,
+`no_answer`, `skipped`, `canceled`, `invalid`, `suppressed`.
+
+`GET /v1/voice/campaigns/{id}/recipients/export` returns the same data as CSV.
+
+## Webhooks
+
+`campaign.recipient.updated` fires on each recipient change and `campaign.completed` when every
+recipient is final; each call also sends its own `call.*` events. See
+[Webhooks](/docs/voice/webhooks).

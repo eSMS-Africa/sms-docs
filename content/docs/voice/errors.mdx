@@ -1,0 +1,80 @@
+---
+title: Voice errors
+description: Every eSMS Voice API error code with its HTTP status and what to do, plus the status_reason and error_code values a finished call can carry.
+---
+
+<Callout type="warn" title="Early access - contact sales">
+eSMS Voice is in early access. Until live voice is enabled for your account, live calls return
+`503 voice_disabled` or `403 voice_not_enabled` - [contact sales](https://esmsafrica.io/contact).
+</Callout>
+
+Voice uses the same error envelope as the rest of the eSMS API. Branch on `error.code`; the
+wording of `error.message` can change.
+
+```json
+{
+  "error": {
+    "code": "country_not_allowed",
+    "message": "Voice calls to this country are not enabled for your account.",
+    "request_id": "3f9a1c2b4d5e6f708192a3b4c5d6e7f8",
+    "details": { "country": "KE" }
+  },
+  "detail": { "code": "country_not_allowed", "...": "..." }
+}
+```
+
+A refused request never places a call and never holds money.
+
+## Request errors
+
+Checked in roughly this order when you create a call: account, scope, live voice switch, account
+enabled, phone number, country, price, caller number, flow, pause switches, rate, concurrency,
+daily cap, balance.
+
+| HTTP | `code` | Meaning | What to do |
+|---|---|---|---|
+| 400 | `idempotency_key_required` | No `Idempotency-Key` header, or longer than 80 characters. | Send a unique key per call. |
+| 409 | `idempotency_conflict` | The key was already used with a different body. | Use a new key for a new call; reuse a key only to retry the same request. |
+| 403 | `insufficient_scope` | The API key lacks the `voice` scope (or `query` for reads). | Create a key with the `voice` scope. |
+| 503 | `voice_disabled` | Live voice calling is not open yet (early access). | Contact sales; use an `esms_test_` key meanwhile. |
+| 403 | `voice_not_enabled` | Voice is not enabled on your account. | Contact sales to enable it. |
+| 403 | `campaigns_not_enabled` | Voice campaigns are not enabled on your account. | Contact sales. |
+| 400 | `invalid_phone` | `to` is not a valid phone number. `details.reason` says why. | Send E.164, for example `+256772123456`. |
+| 403 | `country_not_allowed` | The destination country is not on your account's allow-list. | Ask us to add the country. |
+| 503 | `destination_unavailable` | Voice to this country is not available yet, temporarily unavailable, or has no caller number yet. | Retry later or contact us. |
+| 400 | `invalid_caller_id` | `from` is not one of your caller numbers for this country. | Use a number from `GET /v1/voice/numbers`, or omit `from`. |
+| 400 | `invalid_flow` | The flow breaks a rule; the message names the step. Also for an invalid `max_duration_seconds`. | Fix the flow - see [Call flows](/docs/voice/flows). |
+| 400 | `flow_too_long` | The flow's estimated length is over `max_duration_seconds`. `details.estimated_seconds` gives the estimate. | Shorten the flow or raise `max_duration_seconds`. |
+| 400 | `feature_not_available` | A `record`, `dial`, `transfer` or `conference` step. | Not available yet. |
+| 400 | `invalid_metadata` | `metadata` is not an object or is over 2 KB. | Keep metadata small. |
+| 400 | `invalid_status_callback` | `status_callback` is not a public `https://` URL of at most 500 characters. | Fix the URL. |
+| 503 | `voice_paused` | Voice calling is paused for your account, the country, or everywhere. | Retry later. |
+| 429 | `rate_limited` | Too many calls per second for your account. | Slow down and retry with backoff. |
+| 429 | `concurrency_limit` | Too many calls in progress at once. | Wait for calls to finish, then retry. |
+| 429 | `daily_spend_cap_reached` | Today's voice spend (UTC) would pass your daily cap. | Wait for 00:00 UTC or ask for a higher cap. |
+| 402 | `insufficient_balance` | Your balance cannot cover the pre-call hold. `details.required` and `details.available` are in USD. | Top up, or lower `max_duration_seconds`. |
+| 409 | `invalid_state` | The action does not fit the call or campaign state, for example canceling a call that is already ringing. | Check the status first. |
+| 404 | `not_found` | No call, campaign or endpoint with that id on your account. | Check the id and the key's environment (test keys only see test calls). |
+| 400 | `invalid_request` | A malformed field, unknown body field or bad query parameter. | Read the message. |
+| 400 | `invalid_url` | A webhook endpoint URL is not a public `https://` URL. | Fix the URL. |
+| 400 | `too_many_endpoints` | More than 10 voice webhook endpoints. | Remove one first. |
+| 400 | `too_many_recipients` | More than 100,000 recipients on a campaign. | Split the list. |
+
+## Why a call did not complete
+
+A call that ends without completing has a final `status` and, where useful, `status_reason`,
+`error_code` and `retryable`:
+
+| `status` | Typical `error_code` / `status_reason` | Meaning | Retry? |
+|---|---|---|---|
+| `busy` | `rejected` | The line was busy or the person declined. | Later. |
+| `no_answer` | - | It rang but nobody answered. | Later. |
+| `failed` | `invalid_number` | The number does not exist or is not reachable. | No. |
+| `failed` | `network_error` | A temporary network problem. `retryable: true`. | Yes, after a short delay. |
+| `failed` | `provider_unknown` | We could not confirm whether the call connected within 10 minutes. The hold is released. | Check the person was not reached, then retry. |
+| `failed` | `no_final_status` | No final status arrived within 2 hours. | Check before retrying. |
+| `failed` | `destination_unavailable` | The country could not be reached at dial time. | Later. |
+| `canceled` | `canceled` | You canceled the call while it was queued. | - |
+
+Unanswered calls are not charged. Campaign retries apply only to `busy`, `no_answer` and
+retryable failures (see the [Campaigns API](/docs/api-reference/voice/campaigns)).

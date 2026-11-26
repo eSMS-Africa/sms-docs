@@ -1,0 +1,98 @@
+---
+title: eSMS Voice
+description: Programmable outbound voice calls for Africa - voice OTP, notifications, reminders, keypad IVR menus and voice broadcast campaigns, with signed webhooks. Early access.
+---
+
+<Callout type="warn" title="Early access - contact sales">
+eSMS Voice is in early access. Live calls are enabled per account and per country after a
+conversation with our team - [contact sales](https://esmsafrica.io/contact) to join. Until then a
+live call returns `503 voice_disabled` or `403 voice_not_enabled`. The **sandbox works for everyone
+today** with an `esms_test_` key: build and test your whole integration now.
+</Callout>
+
+**eSMS Voice** lets your application place phone calls that speak text, play audio and collect
+keypad input. You describe the call as a short **flow**, start it with one API call, and receive
+**signed webhooks** as the call is queued, rings, is answered, collects key presses and ends.
+**Voice campaigns** call a whole list with the same flow, personalised per recipient.
+
+## What you can build
+
+- **Voice OTP** - read a one-time code out loud, for feature phones or as an SMS fallback.
+- **Notifications** - payment, fraud, outage or delivery alerts people hear, not skim.
+- **Reminders** - appointments, payments and renewals with the customer's name filled in.
+- **IVR menus with keypad input** - "press 1 to confirm, 2 to reschedule", with branches.
+- **Voice broadcast campaigns** - upload a list, validate it, schedule within calling hours, follow every recipient.
+
+## How it works
+
+```
+ Your backend                       eSMS Africa                           Phone
+ ------------                       -----------                           -----
+ POST /v1/voice/calls  ---------->  checks limits, holds the
+ (Idempotency-Key)                  estimated cost, queues the call
+       <----------- 202 {id: "call_..."}
+                                    dials over our voice network  ------> rings
+       <----- webhook call.ringing
+                                    runs your flow: say / play /  <-----> answered
+       <----- webhook call.answered gather / hangup
+       <----- webhook call.gather   (keypad digits)
+       <----- webhook call.completed  bills per started minute,
+                                    releases the unused hold
+```
+
+1. **Describe the call** as a [flow](/docs/voice/flows): `say`, `play`, `gather` and `hangup` steps.
+2. **Start it** with [`POST /v1/voice/calls`](/docs/api-reference/voice/calls). The
+   `Idempotency-Key` header is required, so a retry never places a second call.
+3. **We place the call.** eSMS Africa checks your country allow-list, limits and balance, holds
+   the cost of the longest possible call, then dials.
+4. **Events come back** as [signed webhooks](/docs/voice/webhooks). You can also fetch any call
+   and its event history by id.
+
+## Coverage
+
+Starting with **Uganda**, then Kenya, Nigeria, Rwanda, Tanzania, Ghana, Zambia and South Africa.
+Each country is switched on for your account when it is ready for live traffic. Your account only
+calls the countries on its allow-list (deny by default); any other destination returns
+`403 country_not_allowed`. `GET /v1/voice/pricing` lists the countries with an approved price and
+whether each is `live` or `early_access`.
+
+## Pricing
+
+Per-minute pricing per country, shown before you launch - early access pricing on request.
+Calls are billed per started minute from the same USD balance you use for SMS. See
+[Billing](/docs/voice/billing).
+
+## Authentication
+
+Use the same API keys as the SMS API (`Authorization: Bearer esms_live_...`), with the
+**`voice`** scope. Read-only endpoints also accept the `query` scope. Every endpoint is available
+under both `https://sms.esmsafrica.io/v1/...` and `https://sms.esmsafrica.io/api/...`.
+
+## Sandbox
+
+Calls made with an `esms_test_` API key are **simulated**: no real call is placed, nothing is
+charged, `livemode` is `false`, and the call still moves through the normal states and fires your
+webhooks. The sandbox works even while live voice is not enabled on your account.
+
+The **last four digits** of `to` choose the outcome:
+
+| `to` ends in | Simulated outcome |
+|---|---|
+| `0000` | Rings, not answered - `no_answer` |
+| `0001` | Line busy - `busy` |
+| `0002` | Call fails - `failed` |
+| `0003` | Answered, presses `1` at the first `gather`, then `completed` |
+| anything else | Answered and `completed` after about 35 seconds |
+
+`GET /v1/voice/settings` returns the same table under `sandbox.magic_numbers`.
+
+## Next steps
+
+<Cards>
+  <Card title="Quickstart" href="/docs/voice/quickstart" description="Place your first (sandbox) call in five minutes." />
+  <Card title="Flows" href="/docs/voice/flows" description="say, play, gather, hangup - limits and personalisation." />
+  <Card title="Calls API" href="/docs/api-reference/voice/calls" description="Create, list, fetch, cancel and hang up calls." />
+  <Card title="Campaigns API" href="/docs/api-reference/voice/campaigns" description="Call a list: upload, validate, launch, pause, cancel." />
+  <Card title="Webhooks" href="/docs/voice/webhooks" description="Events, signatures, retries and deduplication." />
+  <Card title="Errors" href="/docs/voice/errors" description="Every voice error code and what to do." />
+</Cards>

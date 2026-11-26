@@ -1,0 +1,245 @@
+---
+title: Calls
+description: eSMS Voice Calls API - create an outbound call (Idempotency-Key required), list and fetch calls with their events, cancel or hang up, plus caller numbers, pricing, settings and usage.
+---
+
+<Callout type="warn" title="Early access - contact sales">
+eSMS Voice is in early access. Live calls need voice enabled on your account -
+[contact sales](https://esmsafrica.io/contact). Every endpoint works today with an `esms_test_`
+key (simulated calls, no charge). Guides: [Overview](/docs/voice), [Call flows](/docs/voice/flows),
+[Webhooks](/docs/voice/webhooks), [Errors](/docs/voice/errors).
+</Callout>
+
+**Base URL:** `https://sms.esmsafrica.io/v1` (also served under `/api`).
+**Auth:** `Authorization: Bearer <API key or JWT>`. Writes need the `voice` scope; reads accept
+`voice` or `query`.
+
+| Method | Path | Description |
+|---|---|---|
+| `POST` | `/voice/calls` | Create an outbound call |
+| `GET` | `/voice/calls` | List calls |
+| `GET` | `/voice/calls/{id}` | Get a call with its flow and events |
+| `POST` | `/voice/calls/{id}/actions` | `cancel` a queued call or `hangup` an active one |
+| `GET` | `/voice/numbers` | Caller numbers you can use |
+| `GET` | `/voice/pricing` | Per-minute prices per country (public) |
+| `GET` | `/voice/settings` | Your voice settings, limits and today's spend |
+| `GET` | `/voice/usage` | Usage per day and per country |
+
+## Create a call
+
+```
+POST /v1/voice/calls
+```
+
+### Headers
+
+| Header | Required | Description |
+|---|---|---|
+| `Idempotency-Key` | **yes** | Any unique string, at most 80 characters. Same key + same body replays the first response (with `Idempotent-Replayed: true`) and never places a second call. Same key + different body returns `409 idempotency_conflict`. |
+| `Content-Type` | yes | `application/json` |
+
+### Body
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `to` | string | yes | Destination in E.164, e.g. `+256772123456`. The country must be on your allow-list. |
+| `from` | string | no | One of your caller numbers for the destination country (`GET /voice/numbers`). Omit to use the shared caller number for that country. |
+| `flow` | object | yes | `{"steps": [...]}` - see [Call flows](/docs/voice/flows). |
+| `max_duration_seconds` | integer | no | 30 up to your account's maximum call length (default `120`). The call is cut at this length and the [pre-call hold](/docs/voice/billing) is based on it. |
+| `status_callback` | string | no | Public `https://` URL that also receives this call's signed events. |
+| `metadata` | object | no | Your own data, at most 2 KB, returned on the call and in every webhook. |
+
+Unknown fields are refused (`400 invalid_request`).
+
+```bash
+curl -X POST https://sms.esmsafrica.io/v1/voice/calls \
+  -H "Authorization: Bearer esms_live_your_api_key" \
+  -H "Idempotency-Key: otp-7f3a91" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": "+256772123456",
+    "flow": { "steps": [
+      { "type": "say", "text": "Your Acme code is 4 8 2 1.", "loop": 2 },
+      { "type": "hangup" }
+    ] },
+    "max_duration_seconds": 60,
+    "metadata": { "user_id": "u_123" }
+  }'
+```
+
+### Response `202 Accepted`
+
+```json
+{
+  "id": "call_6f1c2a9e4b7d8c0f1a2b3c4d",
+  "status": "queued",
+  "to": "+256772123456",
+  "from": "+256312000000",
+  "country": "UG",
+  "livemode": true,
+  "created_at": "2026-11-26T12:00:00Z",
+  "estimate": { "per_minute_usd": 0.0, "hold_usd": 0.0, "estimated_seconds": 4 }
+}
+```
+
+`estimate.hold_usd` is held from your balance now and settled when the call ends (prices shown
+as placeholders). The call is dialled in the background; follow it with
+[webhooks](/docs/voice/webhooks) or `GET /voice/calls/{id}`.
+
+### Errors
+
+`400 idempotency_key_required`, `409 idempotency_conflict`, `403 insufficient_scope`,
+`503 voice_disabled`, `403 voice_not_enabled`, `400 invalid_phone`, `403 country_not_allowed`,
+`503 destination_unavailable`, `400 invalid_caller_id`, `400 invalid_flow`, `400 flow_too_long`,
+`400 feature_not_available`, `400 invalid_metadata`, `400 invalid_status_callback`,
+`503 voice_paused`, `429 rate_limited`, `429 concurrency_limit`, `429 daily_spend_cap_reached`,
+`402 insufficient_balance`. See [Errors](/docs/voice/errors).
+
+## Call statuses
+
+```
+queued -> initiated -> ringing -> answered -> completed
+                 \          \          \
+                  +----------+----------+--> busy | no_answer | failed
+queued --(cancel)--> canceled
+```
+
+| Status | Meaning |
+|---|---|
+| `queued` | Accepted, waiting to be dialled. Can be canceled. |
+| `dispatching` | Being handed to the voice network. |
+| `initiated` | The network accepted the call. |
+| `ringing` | The phone is ringing. |
+| `answered` | Answered; the flow is running. |
+| `completed` | Final: ended normally after being answered. |
+| `busy` | Final: busy or declined. |
+| `no_answer` | Final: rang without an answer. |
+| `failed` | Final: could not be completed; see `error_code` and `retryable`. |
+| `canceled` | Final: canceled while queued. |
+| `unknown` | Temporary: the network did not confirm the call yet. Resolves to a final status, or to `failed` (`provider_unknown`) after 10 minutes with the hold released. |
+
+Final statuses never change.
+
+## The call object
+
+| Field | Description |
+|---|---|
+| `id` | `call_` + 24 hex characters. |
+| `object` | `call` |
+| `status`, `status_reason`, `error_code`, `retryable` | Current status and, when it did not complete, why. |
+| `direction` | `outbound` |
+| `to`, `from`, `country` | Destination, caller number, ISO country code. |
+| `livemode`, `environment` | `true` / `live` for live keys, `false` / `test` for sandbox calls. |
+| `max_duration_seconds`, `estimated_seconds` | Cap and flow estimate. |
+| `duration_seconds`, `billed_seconds` | Answered length and billed length (whole minutes). |
+| `gather_digits` | Last key presses collected (masked for `sensitive` gathers). |
+| `price` | `{per_minute_usd, hold_usd, charge_usd, currency: "USD"}` |
+| `metadata`, `status_callback` | As sent. |
+| `campaign_id` | `vcmp_...` when the call belongs to a campaign. |
+| `hangup_requested` | `true` after a `hangup` action. |
+| `created_at`, `queued_at`, `dispatched_at`, `ringing_at`, `answered_at`, `ended_at` | ISO 8601 UTC timestamps. |
+| `sequence` | Grows with every event; use it to order webhooks. |
+
+## List calls
+
+```
+GET /v1/voice/calls?status=completed,failed&to=+256772123456&page=1&limit=25
+```
+
+| Query | Description |
+|---|---|
+| `status` | One status or a comma-separated list. |
+| `to` | Exact destination number. |
+| `campaign_id` | Calls of one campaign (`vcmp_...`). |
+| `date_from`, `date_to` | ISO 8601 date or date-time on `created_at`. |
+| `environment` | `live` (default), `test` or `all`. Test keys always see test calls only. |
+| `page`, `limit` | Page number (from 1) and size (1-100, default 25). Newest first. |
+
+```json
+{ "data": [ { "id": "call_...", "status": "completed", "...": "..." } ], "total": 42, "page": 1, "limit": 25 }
+```
+
+## Get a call
+
+```
+GET /v1/voice/calls/{id}
+```
+
+Returns the call object plus its frozen `flow` and the `events` history:
+
+```json
+{
+  "id": "call_6f1c2a9e4b7d8c0f1a2b3c4d",
+  "status": "completed",
+  "...": "...",
+  "flow": { "steps": [ { "type": "say", "text": "Your Acme code is 4 8 2 1.", "voice": "female", "loop": 2 }, { "type": "hangup" } ] },
+  "events": [
+    { "id": "evt_...", "type": "queued", "source": "api", "sequence": 1, "received_at": "2026-11-26T12:00:00Z", "data": { "to": "+256772123456", "country": "UG" } },
+    { "id": "evt_...", "type": "ringing", "source": "provider", "sequence": 4, "received_at": "2026-11-26T12:00:03Z", "data": {} },
+    { "id": "evt_...", "type": "completed", "source": "provider", "sequence": 6, "received_at": "2026-11-26T12:00:21Z", "data": {} }
+  ]
+}
+```
+
+## Cancel or hang up
+
+```
+POST /v1/voice/calls/{id}/actions
+```
+
+| `action` | Allowed when | Effect |
+|---|---|---|
+| `cancel` | `queued` | The call is never dialled; it becomes `canceled` and the hold is released. |
+| `hangup` | `dispatching`, `initiated`, `ringing`, `answered`, `unknown` | The call is ended at the next step of the flow. `hangup_requested` becomes `true`; the final status follows on the webhook. |
+
+```bash
+curl -X POST https://sms.esmsafrica.io/v1/voice/calls/call_6f1c2a9e4b7d8c0f1a2b3c4d/actions \
+  -H "Authorization: Bearer esms_live_your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{ "action": "hangup" }'
+```
+
+Returns the call object. Any other state returns `409 invalid_state`.
+
+## Caller numbers
+
+```
+GET /v1/voice/numbers
+```
+
+```json
+{ "data": [ { "number": "+256312000000", "country": "UG", "country_name": "Uganda", "type": "regular", "shared": true } ] }
+```
+
+`shared: true` numbers are eSMS shared caller numbers any enabled account may use; dedicated
+numbers are on request.
+
+## Pricing
+
+```
+GET /v1/voice/pricing
+```
+
+Public, no key needed. Lists countries with an approved per-minute price: `country_code`,
+`country`, `currency`, `per_minute_local`, `per_minute_usd`, `billing_increment_s`,
+`min_billable_s`, `availability` (`live` | `early_access`). During early access the list may be
+empty - pricing is on request. See [Billing](/docs/voice/billing).
+
+## Settings
+
+```
+GET /v1/voice/settings
+```
+
+Returns `voice_enabled`, `enabled`, `allowed_countries`, `campaigns_enabled`, `limits`
+(`cps`, `max_concurrent`, `daily_spend_cap_usd`, `max_call_seconds`), `today_spend_usd`,
+`recording_enabled` and the sandbox `magic_numbers`. See [Limits](/docs/voice/limits).
+
+## Usage
+
+```
+GET /v1/voice/usage?days=30&environment=live
+```
+
+`days` 1-366 (default 30). Returns `totals`, `by_day` and `by_country`, each with `calls`,
+`answered`, `completed`, `minutes` (billed) and `cost_usd`.

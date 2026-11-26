@@ -1,0 +1,137 @@
+---
+title: Call flows
+description: The four step types of an eSMS Voice call - say, play, gather and hangup - with branches on keypad input, limits, duration estimate and personalisation.
+---
+
+<Callout type="warn" title="Early access - contact sales">
+eSMS Voice is in early access. [Contact sales](https://esmsafrica.io/contact) to enable live calls;
+flows can be built and tested in the sandbox today.
+</Callout>
+
+A **flow** is what happens once the call is answered. It is a list of steps that run in order.
+The same flow shape is used by single calls (`POST /v1/voice/calls`) and by
+[campaigns](/docs/api-reference/voice/campaigns).
+
+```json
+{
+  "steps": [
+    { "type": "say", "text": "Hello, this is City Clinic." },
+    { "type": "gather",
+      "prompt": { "say": "Press 1 to confirm your appointment, or 2 to reschedule." },
+      "num_digits": 1,
+      "timeout_seconds": 10,
+      "retries": 1,
+      "branches": {
+        "1": [{ "type": "say", "text": "Thank you, see you tomorrow." }],
+        "2": [{ "type": "say", "text": "We will call you back to find a new time." }]
+      },
+      "default": [{ "type": "say", "text": "We did not get your answer. Goodbye." }]
+    },
+    { "type": "hangup" }
+  ]
+}
+```
+
+The flow is validated when you create the call and a frozen copy is stored on it, so later
+changes to your templates never affect a call already queued.
+
+## Step types
+
+### say
+
+Speaks text with text to speech.
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `text` | string | required | 1 to 1,000 characters. |
+| `voice` | `female` \| `male` | `female` | |
+| `loop` | integer | `1` | 1 to 3. Repeats count towards the spoken-character limit. |
+
+### play
+
+Plays an audio file.
+
+| Field | Type | Notes |
+|---|---|---|
+| `url` | string | Required. A public `https://` URL, at most 500 characters. Private, loopback and internal addresses are refused. Use a common format such as MP3 or WAV. |
+
+### gather
+
+Plays a prompt and collects key presses (DTMF), then branches on what was pressed.
+
+| Field | Type | Default | Notes |
+|---|---|---|---|
+| `prompt` | object | required | Exactly one of `{"say": "..."}` (optionally with `"voice"`) or `{"play": "https://..."}`. |
+| `num_digits` | integer | `1` | 1 to 20. Input ends when this many digits are pressed. |
+| `finish_on_key` | `#` \| `*` \| `""` | `#` | Key that ends input early. |
+| `timeout_seconds` | integer | `10` | 3 to 30. How long to wait for input. |
+| `retries` | integer | `1` | 0 to 3. Prompt again when nothing is pressed. |
+| `sensitive` | boolean | `false` | Mask the digits (`****`) in events, webhooks and the call record - use for PINs. |
+| `branches` | object | `{}` | Keys are the digits pressed (`"1"`, `"2"`, `"99"`, `"*"`), values are lists of steps. |
+| `default` | list | `[]` | Steps when the input matches no branch or nothing is pressed after all retries. |
+
+After a branch (or `default`) finishes, the call continues with the steps that follow the
+`gather`. Put a `hangup` inside a branch to end the call there instead.
+
+Every gather that receives input sends a `call.gather` webhook and sets `gather_digits` on the
+call.
+
+### hangup
+
+Ends the call. A flow also ends the call after its last step, so a final `hangup` is optional
+but makes the intent clear.
+
+### Not available yet
+
+`record`, `dial`, `transfer` and `conference` steps return `400 feature_not_available`. Inbound
+calls, call recording, masked numbers and conferencing are planned for later phases.
+
+## Limits
+
+| Limit | Value |
+|---|---|
+| Steps per flow, nested steps included | 20 |
+| Branch nesting depth | 3 levels |
+| `say` text | 1,000 characters per step |
+| Spoken text in the whole flow (including `loop` repeats and gather prompts) | 3,000 characters |
+| `play` URL | `https://`, public, at most 500 characters |
+| `gather.timeout_seconds` | 3 to 30 |
+| `gather.retries` | 0 to 3 |
+| `gather.num_digits` | 1 to 20 |
+
+A flow that breaks a rule returns `400 invalid_flow` with a message that names the step, for
+example `steps[1]: num_digits must be 1 to 20.`
+
+## Duration estimate and max_duration_seconds
+
+Before a call is queued, eSMS estimates the **longest** path through the flow:
+
+- spoken text at about 14 characters per second,
+- 30 seconds for each `play`,
+- each `gather` at `(prompt + timeout_seconds) x (retries + 1)` (a `play` prompt counts as 30 seconds),
+- the longest branch of each gather.
+
+`max_duration_seconds` (default `120`, allowed 30 up to your account's maximum call length, never
+more than 1,800) caps how long the call may last. If the estimate is longer, the call is refused
+with `400 flow_too_long` and `details.estimated_seconds`. The creation response returns the
+estimate as `estimate.estimated_seconds`, and the [pre-call hold](/docs/voice/billing) is based on
+`max_duration_seconds`.
+
+## Personalisation
+
+In [campaigns](/docs/api-reference/voice/campaigns), `say` texts and `gather` prompts can use the
+recipient's `vars`:
+
+- `{name}` - replaced with the recipient's `name` value.
+- `{name|there}` - with a fallback when the value is missing or empty.
+
+```json
+{ "type": "say", "text": "Hello {name|there}, your payment of {amount} is due on {due_date}." }
+```
+
+With recipient `{"to": "+256772123456", "vars": {"name": "Amina", "amount": "UGX 50,000", "due_date": "Friday"}}`
+the call says "Hello Amina, your payment of UGX 50,000 is due on Friday." For a single API call,
+build the final text in your code before you send it.
+
+Write numbers the way they should be read: `4 8 2 1` is read digit by digit, `4821` as a
+number. For a voice OTP, repeat the code with `"loop": 2` or a second `say`.

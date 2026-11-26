@@ -1,0 +1,79 @@
+---
+title: Voice limits
+description: eSMS Voice account limits - calls per second, concurrent calls, daily spend cap, maximum call length, country allow-list, pause switches, flow and campaign limits.
+---
+
+<Callout type="warn" title="Early access - contact sales">
+eSMS Voice is in early access. Limits are set per account when voice is enabled -
+[contact sales](https://esmsafrica.io/contact) to change them.
+</Callout>
+
+Voice is charged per minute, so the safety limits are on by default and checked before a call
+is dialled. `GET /v1/voice/settings` returns your current values:
+
+```json
+{
+  "voice_enabled": false,
+  "enabled": false,
+  "allowed_countries": ["UG"],
+  "campaigns_enabled": false,
+  "limits": { "cps": 1, "max_concurrent": 5, "daily_spend_cap_usd": 20.0, "max_call_seconds": 300 },
+  "today_spend_usd": 0.0,
+  "recording_enabled": false,
+  "sandbox": { "magic_numbers": { "0000": "no_answer", "0001": "busy", "0002": "failed", "0003": "answered, presses 1, completed", "other": "completed after about 35 s" } }
+}
+```
+
+`voice_enabled` is the platform-wide switch for live calls (off during early access); `enabled`
+is your account.
+
+## Account limits
+
+| Limit | Default for a new account | When reached |
+|---|---|---|
+| Calls per second (`cps`) | 1 | `429 rate_limited` |
+| Calls in progress at once (`max_concurrent`) | 5 | `429 concurrency_limit` |
+| Daily spend cap (`daily_spend_cap_usd`, holds + charges since 00:00 UTC) | USD 20 | `429 daily_spend_cap_reached` |
+| Longest call (`max_call_seconds`) | 300 s (never more than 1,800 s) | `max_duration_seconds` above it is refused (`400 invalid_flow`) |
+| Countries (`allowed_countries`) | none - deny by default | `403 country_not_allowed` |
+| Campaigns (`campaigns_enabled`) | off | `403 campaigns_not_enabled` |
+
+Your account manager raises these as your traffic grows. Interactive API calls are served before
+campaign calls, so a running campaign never blocks your OTP or IVR traffic.
+
+## Pause switches
+
+Voice can be paused for your **account**, for a **country** or for everyone. While paused, new
+calls are refused with `503 voice_paused`, queued calls wait, and running campaigns pause. You
+can pause your own campaigns at any time with `POST /v1/voice/campaigns/{id}/actions`
+`{"action": "pause"}`.
+
+## Per call
+
+| Limit | Value |
+|---|---|
+| `max_duration_seconds` | 30 to your `max_call_seconds`; default 120 |
+| `metadata` | JSON object, at most 2 KB |
+| `Idempotency-Key` | required, at most 80 characters |
+| `status_callback` | public `https://` URL, at most 500 characters |
+
+Flow limits (20 steps, 3 levels of branches, 1,000 characters per `say`, 3,000 spoken characters
+in total) are on [Call flows](/docs/voice/flows).
+
+## Campaigns
+
+| Limit | Value |
+|---|---|
+| Recipients per campaign | 100,000 |
+| CSV upload | 20 MB, a `phone`, `to` or `msisdn` column |
+| Campaign `cps` | 1 to 50, never above your account `cps` |
+| Calling hours (`quiet_hours`) | default 08:00 - 20:00 in the recipient's local time |
+| Retries (`retry.max_attempts`) | 1 to 3 attempts, `delay_minutes` 1 to 1,440 |
+
+## Webhooks
+
+| Limit | Value |
+|---|---|
+| Endpoints per account | 10 |
+| Retry schedule | 1 min, 5 min, 30 min, 2 h, 8 h, 24 h, then failed (within 48 h) |
+| Previous secret valid after rotation | 24 hours |
