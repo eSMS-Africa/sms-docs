@@ -51,8 +51,8 @@ daily cap, balance.
 | 503 | `voice_paused` | Voice calling is paused for your account, the country, or everywhere. | Retry later. |
 | 429 | `rate_limited` | Too many calls per second for your account. | Slow down and retry with backoff. |
 | 429 | `concurrency_limit` | Too many calls in progress at once. | Wait for calls to finish, then retry. |
-| 429 | `daily_spend_cap_reached` | Today's voice spend (UTC) would pass your daily cap. | Wait for 00:00 UTC or ask for a higher cap. |
-| 402 | `insufficient_balance` | Your balance cannot cover the pre-call hold. `details.required` and `details.available` are in USD. | Top up, or lower `max_duration_seconds`. |
+| 429 | `daily_spend_cap_reached` | Today's voice spend (UTC) would pass your daily cap. `details`: `daily_spend_cap_usd`, `spent_today_usd`. | Wait for 00:00 UTC or ask for a higher cap. |
+| 402 | `insufficient_balance` | Your balance cannot cover the pre-call hold. `details`: `required`, `available`, `currency`, `hint`. | Top up, or lower `max_duration_seconds`. |
 | 409 | `invalid_state` | The action does not fit the call or campaign state, for example canceling a call that is already ringing. | Check the status first. |
 | 404 | `not_found` | No call, campaign or endpoint with that id on your account. | Check the id and the key's environment (test keys only see test calls). |
 | 400 | `invalid_request` | A malformed field, unknown body field or bad query parameter. | Read the message. |
@@ -74,7 +74,12 @@ A call that ends without completing has a final `status` and, where useful, `sta
 | `failed` | `provider_unknown` | We could not confirm whether the call connected within 10 minutes. The hold is released. | Check the person was not reached, then retry. |
 | `failed` | `no_final_status` | No final status arrived within 2 hours. | Check before retrying. |
 | `failed` | `destination_unavailable` | The country could not be reached at dial time. | Later. |
+| `failed` | `carrier_error` | The voice network refused the call for another reason. | Later; contact support if it repeats. |
+| `failed` | `invalid_caller_id` | The caller number was refused for this destination. | Contact support. |
+| `failed` | `expired` | The call stayed queued for more than 2 hours (for example while voice was paused). | Create a new call if still needed. |
 | `canceled` | `canceled` | You canceled the call while it was queued. | - |
+
+`status_reason` can be `completed`, `busy`, `rejected`, `no_answer`, `invalid_number`, `network_error`, `unknown`, `route_failed`, `no_route`, `provider_unknown`, `no_final_status`, `canceled`, `hangup` or `expired`.
 
 Unanswered calls are not charged. Campaign retries apply only to `busy`, `no_answer` and
 retryable failures (see the [Campaigns API](/docs/api-reference/voice/campaigns)).

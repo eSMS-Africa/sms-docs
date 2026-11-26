@@ -80,11 +80,17 @@ The **last four digits** of `to` choose the outcome:
 |---|---|
 | `0000` | Rings, not answered - `no_answer` |
 | `0001` | Line busy - `busy` |
-| `0002` | Call fails - `failed` |
+| `0002` | Call fails - `failed` with `error_code: network_error`, `retryable: true` |
 | `0003` | Answered, presses `1` at the first `gather`, then `completed` |
 | anything else | Answered and `completed` after about 35 seconds |
 
 `GET /v1/voice/settings` returns the same table under `sandbox.magic_numbers`.
+
+The sandbox skips the early-access and money checks (live voice switch, account enabled, country
+allow-list, approved price, caller number, daily cap, balance) but still enforces phone number
+validity, flow rules, idempotency, pause switches and rate limits (at least 5 calls per second and
+10 at once). Signed in to the dashboard, you can also send `"environment": "test"` in the body to
+make a sandbox call without a test key.
 
 ## Next steps
 

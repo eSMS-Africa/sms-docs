@@ -30,6 +30,7 @@ There are two ways to receive them:
 | `GET` | `/v1/voice/webhook-deliveries` | Delivery log: `?status=pending\|delivered\|failed`, `event_type`, `call_id`, `page`, `limit`. |
 | `POST` | `/v1/voice/webhook-deliveries/{id}/replay` | Send a delivery again (same event id). |
 
+Creating, changing and deleting endpoints needs an owner or admin role on the account (like SMS webhooks).
 URLs must be public `https://` addresses of at most 500 characters; private, loopback and
 metadata addresses are refused with `400 invalid_url`.
 

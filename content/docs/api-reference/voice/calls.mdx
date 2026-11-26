@@ -48,6 +48,7 @@ POST /v1/voice/calls
 | `max_duration_seconds` | integer | no | 30 up to your account's maximum call length (default `120`). The call is cut at this length and the [pre-call hold](/docs/voice/billing) is based on it. |
 | `status_callback` | string | no | Public `https://` URL that also receives this call's signed events. |
 | `metadata` | object | no | Your own data, at most 2 KB, returned on the call and in every webhook. |
+| `environment` | string | no | Dashboard (JWT) callers only: `"test"` makes a sandbox call. API keys decide by prefix (`esms_test_` = sandbox). |
 
 Unknown fields are refused (`400 invalid_request`).
 
@@ -165,7 +166,7 @@ GET /v1/voice/calls?status=completed,failed&to=+256772123456&page=1&limit=25
 GET /v1/voice/calls/{id}
 ```
 
-Returns the call object plus its frozen `flow` and the `events` history:
+Returns the call object plus its frozen `flow` and the `events` history. Event `type` is one of `queued`, `dispatching`, `initiated`, `ringing`, `answered`, `gather`, `hangup_requested`, `completed`, `busy`, `no_answer`, `failed`, `canceled`, `unknown`:
 
 ```json
 {

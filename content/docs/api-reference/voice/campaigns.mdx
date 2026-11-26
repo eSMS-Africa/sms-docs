@@ -101,7 +101,7 @@ Returns `201` with the campaign object:
   "validation": null,
   "estimate_usd": 0.0,
   "counters": { "pending": 1, "queued": 0, "calling": 0, "answered": 0, "completed": 0, "failed": 0, "busy": 0,
-                "no_answer": 0, "skipped": 0, "canceled": 0, "invalid": 0, "suppressed": 0, "total": 1 },
+                "no_answer": 0, "skipped": 0, "canceled": 0, "invalid": 0, "suppressed": 0, "total": 1, "cost_usd": 0.0 },
   "livemode": true,
   "environment": "live",
   "launched_at": null,
@@ -118,7 +118,7 @@ Returns `201` with the campaign object:
 POST /v1/voice/campaigns/{id}/recipients
 ```
 
-Only while the campaign is a draft. Up to 100,000 recipients per campaign.
+Allowed while the campaign is a draft or validated (adding rows to a validated campaign returns it to `draft`, so validate again). Up to 100,000 recipients per campaign.
 
 **JSON** - a list, or `{"recipients": [...]}`:
 
@@ -130,7 +130,7 @@ Only while the campaign is a draft. Up to 100,000 recipients per campaign.
 ```
 
 **CSV** - `multipart/form-data` with a `file` field (at most 20 MB). A header row is required with
-a `phone`, `to` or `msisdn` column; every other column becomes a `var`:
+a `phone`, `to`, `msisdn`, `number` or `mobile` column; every other column becomes a `var`:
 
 ```bash
 curl -X POST https://sms.esmsafrica.io/v1/voice/campaigns/vcmp_0a1b2c3d4e5f6a7b8c9d0e1f/recipients \
@@ -176,7 +176,10 @@ cost. Required before launch; editing the campaign returns it to `draft`.
 - `not_allowed` - countries not on your allow-list.
 - `estimate_usd` - valid recipients x estimated call length (billed per started minute) x
   per-minute price. `0` in the sandbox. Values above are placeholders.
-- `capacity_estimate_minutes` - roughly how long the campaign takes at your `max_concurrent`.
+- `capacity_estimate_minutes` - roughly how long (wall clock) calling everyone once takes at `max_concurrent`.
+
+After validation each recipient is `pending` (valid, will be called), `invalid`, `suppressed`, or
+`skipped` with `disposition` `duplicate` or `not_allowed`.
 
 ## Launch
 
@@ -211,7 +214,8 @@ POST /v1/voice/campaigns/{id}/actions
 
 A campaign also pauses by itself when your balance runs out (`pause_reason:
 "insufficient_balance"`), when the daily spend cap is reached, or when voice is paused for your
-account or a country. Fix the cause and `resume`.
+account or a country. Fix the cause and `resume`. `pause_reason` is one of `paused_by_user`,
+`paused_by_admin`, `insufficient_balance`, `daily_spend_cap_reached`, `voice_paused`.
 
 ## Recipients and results
 
@@ -244,7 +248,7 @@ GET /v1/voice/campaigns/{id}/recipients?status=no_answer&page=1&limit=100
 Recipient statuses: `pending`, `queued`, `calling`, `answered`, `completed`, `failed`, `busy`,
 `no_answer`, `skipped`, `canceled`, `invalid`, `suppressed`.
 
-`GET /v1/voice/campaigns/{id}/recipients/export` returns the same data as CSV.
+`GET /v1/voice/campaigns/{id}/recipients/export` returns a CSV with `phone,country,status,attempts,disposition,cost_usd,call_id,error`.
 
 ## Webhooks
 
